@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
+import LoginForm from "@/components/LoginForm";
+import { logout } from "@/actions/auth";
 import PurchaseOrderForm from "@/components/PurchaseOrderForm";
 import PurchaseOrderList from "@/components/PurchaseOrderList";
 import SalesOrderForm from "@/components/SalesOrderForm";
@@ -18,15 +21,25 @@ import {
   FileText, ArrowRightLeft, Landmark, FileCheck, CreditCard, Package
 } from "lucide-react";
 
-// Hardcoded for Phase 1 testing
-const TENANT_ID = '11111111-1111-1111-1111-111111111111';
-
 // In Next.js 15, searchParams is asynchronous. 
 export default async function Home({ searchParams }: { searchParams: Promise<{ module?: string, action?: string }> }) {
+  // 1. SECURE TENANT INTERCEPTION
+  const cookieStore = await cookies();
+  const tenantIdCookie = cookieStore.get('tenant_id');
+
+  // If no secure session exists, halt the application and render the login gateway.
+  if (!tenantIdCookie?.value) {
+    return <LoginForm />;
+  }
+
+  // 2. DYNAMIC TENANT ASSIGNMENT
+  const TENANT_ID = tenantIdCookie.value;
+
   const params = await searchParams;
   const activeModule = params.module || 'dashboard';
   const action = params.action || 'list';
   let accountsList = [];
+  let itemsList = [];
   let moduleData: any = null;
 
   // Fetch data on the server based on the active module
@@ -39,9 +52,15 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
   } else if (activeModule === 'purchase_orders' && action === 'list') {
     const response = await getPurchaseOrders(TENANT_ID);
     moduleData = response.data || [];
+  } else if (activeModule === 'purchase_orders' && action === 'create') {
+    const response = await getItems(TENANT_ID);
+    itemsList = response.data || [];
   } else if (activeModule === 'sales_orders' && action === 'list') {
     const response = await getSalesOrders(TENANT_ID);
     moduleData = response.data || [];
+  } else if (activeModule === 'sales_orders' && action === 'create') {
+    const response = await getItems(TENANT_ID);
+    itemsList = response.data || [];
   } else if (activeModule === 'chart_of_accounts') {
     const response = await getAccounts(TENANT_ID);
     moduleData = response.data || [];
@@ -103,7 +122,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
         <div className="flex items-center space-x-4">
           <div className="text-right">
             <p className="text-xs font-bold text-slate-800">Admin User</p>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Global Controller</p>
+            <form action={logout}>
+              <button type="submit" className="text-[10px] font-bold text-rose-500 uppercase tracking-widest hover:text-rose-600 transition-colors">
+                Log Out
+              </button>
+            </form>
           </div>
           <div className="w-8 h-8 bg-slate-800 text-white font-bold rounded-full flex items-center justify-center text-xs">
             AD
@@ -157,7 +180,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
                     <span>/</span>
                     <span className="text-slate-800">Create New</span>
                   </div>
-                  <PurchaseOrderForm />
+                  <PurchaseOrderForm items={itemsList} />
                 </div>
               ) : (
                 <PurchaseOrderList orders={moduleData || []} />
@@ -170,7 +193,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
                     <span>/</span>
                     <span className="text-slate-800">Create New</span>
                   </div>
-                  <SalesOrderForm />
+                  <SalesOrderForm items={itemsList} />
                 </div>
               ) : (
                 <SalesOrderList orders={moduleData || []} />

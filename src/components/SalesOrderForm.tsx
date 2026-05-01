@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { createSalesOrder } from '@/actions/o2c';
 import { Plus, Trash2, Save, FileCheck, Loader2 } from 'lucide-react';
 
-export default function SalesOrderForm() {
+export default function SalesOrderForm({ items = [] }: { items?: any[] }) {
     const [loading, setLoading] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
@@ -13,12 +13,30 @@ export default function SalesOrderForm() {
     const customerId = '33333333-3333-3333-3333-333333333333';
 
     const [lines, setLines] = useState([
-        { id: '1', description: '', quantity: 1, unitPrice: 0 }
+        { id: '1', sku: '', description: '', quantity: 1, unitPrice: 0 }
     ]);
 
-    const addLine = () => setLines([...lines, { id: crypto.randomUUID(), description: '', quantity: 1, unitPrice: 0 }]);
+    const addLine = () => setLines([...lines, { id: crypto.randomUUID(), sku: '', description: '', quantity: 1, unitPrice: 0 }]);
     const updateLine = (id: string, field: string, value: string | number) => setLines(lines.map(line => line.id === id ? { ...line, [field]: value } : line));
     const removeLine = (id: string) => { if (lines.length > 1) setLines(lines.filter(line => line.id !== id)); };
+
+    const handleItemSelect = (id: string, selectedSku: string) => {
+        const item = items.find(i => i.sku === selectedSku);
+        if (item) {
+            setLines(lines.map(line =>
+                line.id === id ? {
+                    ...line,
+                    sku: selectedSku,
+                    description: `[${item.sku}] ${item.name}`,
+                    unitPrice: item.unit_price
+                } : line
+            ));
+        } else {
+            updateLine(id, 'sku', '');
+            updateLine(id, 'description', '');
+            updateLine(id, 'unitPrice', 0);
+        }
+    };
 
     const visualTotal = lines.reduce((sum, line) => sum + (Number(line.quantity) * Number(line.unitPrice)), 0);
 
@@ -73,9 +91,33 @@ export default function SalesOrderForm() {
                             <tbody className="divide-y divide-slate-100">
                                 {lines.map((line) => (
                                     <tr key={line.id} className="bg-white">
-                                        <td className="p-4"><input required type="text" value={line.description} onChange={(e) => updateLine(line.id, 'description', e.target.value)} placeholder="E.g. Consulting Hours" className="w-full border border-slate-300 rounded-md p-2 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm" /></td>
+                                        <td className="p-4">
+                                            <select
+                                                required
+                                                value={line.sku}
+                                                onChange={(e) => handleItemSelect(line.id, e.target.value)}
+                                                className="w-full border border-slate-300 rounded-md p-2 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm bg-white"
+                                            >
+                                                <option value="">-- Select Product/Service --</option>
+                                                {items.map(item => (
+                                                    <option key={item.id} value={item.sku}>
+                                                        [{item.sku}] {item.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </td>
                                         <td className="p-4"><input required type="number" min="1" value={line.quantity} onChange={(e) => updateLine(line.id, 'quantity', e.target.value)} className="w-full border border-slate-300 rounded-md p-2 text-center font-mono focus:outline-none focus:border-emerald-500 text-sm" /></td>
-                                        <td className="p-4"><input required type="number" step="0.01" min="0" value={line.unitPrice} onChange={(e) => updateLine(line.id, 'unitPrice', e.target.value)} className="w-full border border-slate-300 rounded-md p-2 text-right font-mono focus:outline-none focus:border-emerald-500 text-sm" /></td>
+                                        <td className="p-4">
+                                            <input
+                                                required
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                value={line.unitPrice}
+                                                disabled
+                                                className="w-full border border-slate-300 rounded-md p-2 text-right font-mono focus:outline-none focus:border-emerald-500 text-sm bg-slate-50 text-slate-500 cursor-not-allowed"
+                                            />
+                                        </td>
                                         <td className="p-4 text-right font-mono text-slate-700 font-medium">${(Number(line.quantity) * Number(line.unitPrice)).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                                         <td className="p-4 text-center"><button type="button" onClick={() => removeLine(line.id)} className="text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={16} /></button></td>
                                     </tr>

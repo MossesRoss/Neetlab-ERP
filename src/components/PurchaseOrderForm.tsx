@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { createPurchaseOrder } from '@/actions/p2p';
 import { Plus, Trash2, Save, ShoppingCart, Loader2 } from 'lucide-react';
 
-export default function PurchaseOrderForm() {
+export default function PurchaseOrderForm({ items = [] }: { items?: any[] }) {
     const [loading, setLoading] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
@@ -14,19 +14,33 @@ export default function PurchaseOrderForm() {
     const vendorId = '22222222-2222-2222-2222-222222222222';
 
     const [lines, setLines] = useState([
-        { id: '1', description: '', quantity: 1, unitPrice: 0 }
+        { id: '1', sku: '', description: '', quantity: 1, unitPrice: 0 }
     ]);
 
     const addLine = () => {
-        setLines([...lines, { id: crypto.randomUUID(), description: '', quantity: 1, unitPrice: 0 }]);
+        setLines([...lines, { id: crypto.randomUUID(), sku: '', description: '', quantity: 1, unitPrice: 0 }]);
     };
 
     const updateLine = (id: string, field: string, value: string | number) => {
         setLines(lines.map(line => line.id === id ? { ...line, [field]: value } : line));
     };
 
-    const removeLine = (id: string) => {
-        if (lines.length > 1) setLines(lines.filter(line => line.id !== id));
+    const handleItemSelect = (id: string, selectedSku: string) => {
+        const item = items.find(i => i.sku === selectedSku);
+        if (item) {
+            setLines(lines.map(line =>
+                line.id === id ? {
+                    ...line,
+                    sku: selectedSku,
+                    description: `[${item.sku}] ${item.name}`,
+                    unitPrice: item.unit_price
+                } : line
+            ));
+        } else {
+            updateLine(id, 'sku', '');
+            updateLine(id, 'description', '');
+            updateLine(id, 'unitPrice', 0);
+        }
     };
 
     // Client-side visual calculation ONLY. The server will recalculate this for security.
@@ -98,14 +112,19 @@ export default function PurchaseOrderForm() {
                                 {lines.map((line) => (
                                     <tr key={line.id} className="bg-white">
                                         <td className="p-4">
-                                            <input
+                                            <select
                                                 required
-                                                type="text"
-                                                value={line.description}
-                                                onChange={(e) => updateLine(line.id, 'description', e.target.value)}
-                                                placeholder="E.g. Steel Beams (Grade A)"
-                                                className="w-full border border-slate-300 rounded-md p-2 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all text-sm"
-                                            />
+                                                value={line.sku}
+                                                onChange={(e) => handleItemSelect(line.id, e.target.value)}
+                                                className="w-full border border-slate-300 rounded-md p-2 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all text-sm bg-white"
+                                            >
+                                                <option value="">-- Select Item from Catalog --</option>
+                                                {items.map(item => (
+                                                    <option key={item.id} value={item.sku}>
+                                                        [{item.sku}] {item.name}
+                                                    </option>
+                                                ))}
+                                            </select>
                                         </td>
                                         <td className="p-4">
                                             <input
@@ -124,8 +143,8 @@ export default function PurchaseOrderForm() {
                                                 step="0.01"
                                                 min="0"
                                                 value={line.unitPrice}
-                                                onChange={(e) => updateLine(line.id, 'unitPrice', e.target.value)}
-                                                className="w-full border border-slate-300 rounded-md p-2 text-right font-mono focus:outline-none focus:border-sky-500 text-sm"
+                                                disabled
+                                                className="w-full border border-slate-300 rounded-md p-2 text-right font-mono focus:outline-none focus:border-sky-500 text-sm bg-slate-50 text-slate-500 cursor-not-allowed"
                                             />
                                         </td>
                                         <td className="p-4 text-right font-mono text-slate-700 font-medium">
