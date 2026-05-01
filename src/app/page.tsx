@@ -6,12 +6,16 @@ import SalesOrderList from "@/components/SalesOrderList";
 import ChartOfAccounts from "@/components/ChartOfAccounts";
 import JournalEntryForm from "@/components/JournalEntryForm";
 import JournalEntryList from "@/components/JournalEntryList";
+import FinancialDashboard from "@/components/FinancialDashboard";
+import ItemMaster from "@/components/ItemMaster"; // NEW IMPORT
 import { getPurchaseOrders } from "@/actions/p2p";
 import { getSalesOrders } from "@/actions/o2c";
 import { getAccounts, getJournalEntries } from "@/actions/gl";
+import { getFinancialSummary } from "@/actions/dashboard";
+import { getItems } from "@/actions/items"; // NEW IMPORT
 import {
   Building2, LayoutDashboard, ShoppingCart,
-  FileText, ArrowRightLeft, Landmark, FileCheck, CreditCard
+  FileText, ArrowRightLeft, Landmark, FileCheck, CreditCard, Package
 } from "lucide-react";
 
 // Hardcoded for Phase 1 testing
@@ -22,12 +26,17 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
   const params = await searchParams;
   const activeModule = params.module || 'dashboard';
   const action = params.action || 'list';
+  let accountsList = [];
+  let moduleData: any = null;
 
   // Fetch data on the server based on the active module
-  let moduleData = null;
-  let accountsList = []; // We need this to populate the Journal Entry form dropdown
-
-  if (activeModule === 'purchase_orders' && action === 'list') {
+  if (activeModule === 'dashboard') {
+    const response = await getFinancialSummary(TENANT_ID);
+    moduleData = response.data || null;
+  } else if (activeModule === 'item_master') {
+    const response = await getItems(TENANT_ID);
+    moduleData = response.data || [];
+  } else if (activeModule === 'purchase_orders' && action === 'list') {
     const response = await getPurchaseOrders(TENANT_ID);
     moduleData = response.data || [];
   } else if (activeModule === 'sales_orders' && action === 'list') {
@@ -51,6 +60,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
     {
       label: "Enterprise",
       items: [{ id: 'dashboard', icon: LayoutDashboard, label: 'Financial Dashboard' }]
+    },
+    {
+      label: "Master Data",
+      items: [{ id: 'item_master', icon: Package, label: 'Item Catalog' }]
     },
     {
       label: "Procure to Pay (P2P)",
@@ -134,7 +147,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
         <main className="flex-1 overflow-y-auto p-8">
           <div className="max-w-6xl mx-auto">
 
-            {activeModule === 'purchase_orders' ? (
+            {activeModule === 'dashboard' ? (
+              <FinancialDashboard metrics={moduleData} />
+            ) : activeModule === 'purchase_orders' ? (
               action === 'create' ? (
                 <div className="space-y-6">
                   <div className="flex items-center space-x-2 text-sm text-slate-500 font-medium">
@@ -162,6 +177,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
               )
             ) : activeModule === 'chart_of_accounts' ? (
               <ChartOfAccounts accounts={moduleData || []} />
+            ) : activeModule === 'item_master' ? (
+              <ItemMaster items={moduleData || []} />
             ) : activeModule === 'journal_entries' ? (
               action === 'create' ? (
                 <div className="space-y-6">
