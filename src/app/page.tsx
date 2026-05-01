@@ -14,6 +14,7 @@ import ItemMaster from "@/components/ItemMaster";
 import EntityDirectory from "@/components/EntityDirectory";
 import BillList from "@/components/BillList";
 import InvoiceList from "@/components/InvoiceList";
+import PrintableInvoice from "@/components/PrintableInvoice";
 import UserManagement from "@/components/UserManagement";
 import { getPurchaseOrders } from "@/actions/p2p";
 import { getSalesOrders } from "@/actions/o2c";
@@ -21,15 +22,14 @@ import { getAccounts, getJournalEntries } from "@/actions/gl";
 import { getFinancialSummary } from "@/actions/dashboard";
 import { getItems } from "@/actions/items";
 import { getEntities } from "@/actions/entities";
-import { getBills, getInvoices } from "@/actions/billing";
+import { getBills, getInvoices, getInvoiceDetails } from "@/actions/billing";
 import { getUsers } from "@/actions/admin";
 import {
   Building2, LayoutDashboard, ShoppingCart,
   FileText, ArrowRightLeft, Landmark, FileCheck, CreditCard, Package, Users, AlertTriangle, Receipt, Shield
 } from "lucide-react";
 
-// In Next.js 15, searchParams is asynchronous. 
-export default async function Home({ searchParams }: { searchParams: Promise<{ module?: string, action?: string }> }) {
+export default async function Home({ searchParams }: { searchParams: Promise<{ module?: string, action?: string, id?: string }> }) {
   // 1. SECURE TENANT INTERCEPTION
   const cookieStore = await cookies();
   const tenantIdCookie = cookieStore.get('tenant_id');
@@ -51,6 +51,18 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
   const defaultModule = USER_ROLE === 'SALES' ? 'sales_orders' : USER_ROLE === 'PROCUREMENT' ? 'purchase_orders' : 'dashboard';
   const activeModule = params.module || defaultModule;
   const action = params.action || 'list';
+  const recordId = params.id; // Extract the requested document ID
+
+  // ==============================================================
+  // PHASE 23: ISOLATED PRINT ROUTE INTERCEPTION
+  // If the user is requesting a PDF, return the document immediately, 
+  // skipping the entire application shell below!
+  // ==============================================================
+  if (action === 'print' && activeModule === 'invoices' && recordId) {
+    const response = await getInvoiceDetails(TENANT_ID, recordId);
+    return <PrintableInvoice invoice={response.data} />;
+  }
+
   let accountsList = [];
   let itemsList = [];
   let entitiesList = [];
@@ -171,8 +183,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
             <div className="flex items-center justify-end space-x-2">
               {/* Dynamic Role Badge */}
               <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-widest ${USER_ROLE === 'ADMIN' ? 'bg-indigo-100 text-indigo-700' :
-                  USER_ROLE === 'SALES' ? 'bg-emerald-100 text-emerald-700' :
-                    'bg-sky-100 text-sky-700'
+                USER_ROLE === 'SALES' ? 'bg-emerald-100 text-emerald-700' :
+                  'bg-sky-100 text-sky-700'
                 }`}>
                 {USER_ROLE}
               </span>
@@ -206,8 +218,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
                       <Link
                         href={`/?module=${item.id}&action=list`}
                         className={`w-full flex items-center px-6 py-2.5 text-xs font-bold uppercase tracking-wider transition-all ${activeModule === item.id
-                            ? 'bg-sky-600 text-white shadow-[inset_4px_0_0_0_#bae6fd]'
-                            : 'hover:bg-slate-800 hover:text-white'
+                          ? 'bg-sky-600 text-white shadow-[inset_4px_0_0_0_#bae6fd]'
+                          : 'hover:bg-slate-800 hover:text-white'
                           }`}
                       >
                         <item.icon size={16} className={`mr-3 ${activeModule === item.id ? 'text-sky-200' : 'text-slate-500'}`} />
@@ -257,8 +269,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
                   <SalesOrderForm items={itemsList} entities={entitiesList} />
                 </div>
               ) : (
-                <SalesOrderList orders={moduleData || []} />
+                <SalesOrderList orders={moduleData || []} tenantId={TENANT_ID} /> // ADDED TENANT ID
               )
+            ) : activeModule === 'invoices' ? (
+              <InvoiceList invoices={moduleData || []} />
             ) : activeModule === 'chart_of_accounts' ? (
               <ChartOfAccounts accounts={moduleData || []} />
             ) : activeModule === 'item_master' ? (
@@ -267,8 +281,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
               <EntityDirectory entities={moduleData || []} tenantId={TENANT_ID} />
             ) : activeModule === 'bills' ? (
               <BillList bills={moduleData || []} />
-            ) : activeModule === 'invoices' ? (
-              <InvoiceList invoices={moduleData || []} />
             ) : activeModule === 'user_management' ? (
               <UserManagement users={moduleData || []} tenantId={TENANT_ID} />
             ) : activeModule === 'journal_entries' ? (
