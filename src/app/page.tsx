@@ -11,16 +11,21 @@ import JournalEntryForm from "@/components/JournalEntryForm";
 import JournalEntryList from "@/components/JournalEntryList";
 import FinancialDashboard from "@/components/FinancialDashboard";
 import ItemMaster from "@/components/ItemMaster";
-import EntityDirectory from "@/components/EntityDirectory"; // NEW IMPORT
+import EntityDirectory from "@/components/EntityDirectory";
+import BillList from "@/components/BillList";
+import InvoiceList from "@/components/InvoiceList";
+import UserManagement from "@/components/UserManagement";
 import { getPurchaseOrders } from "@/actions/p2p";
 import { getSalesOrders } from "@/actions/o2c";
 import { getAccounts, getJournalEntries } from "@/actions/gl";
 import { getFinancialSummary } from "@/actions/dashboard";
 import { getItems } from "@/actions/items";
-import { getEntities } from "@/actions/entities"; // NEW IMPORT
+import { getEntities } from "@/actions/entities";
+import { getBills, getInvoices } from "@/actions/billing";
+import { getUsers } from "@/actions/admin";
 import {
   Building2, LayoutDashboard, ShoppingCart,
-  FileText, ArrowRightLeft, Landmark, FileCheck, CreditCard, Package, Users, AlertTriangle
+  FileText, ArrowRightLeft, Landmark, FileCheck, CreditCard, Package, Users, AlertTriangle, Receipt, Shield
 } from "lucide-react";
 
 // In Next.js 15, searchParams is asynchronous. 
@@ -48,7 +53,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
   const action = params.action || 'list';
   let accountsList = [];
   let itemsList = [];
-  let entitiesList = []; // NEW: Array for our entities
+  let entitiesList = [];
   let moduleData: any = null;
 
   // Fetch data on the server based on the active module
@@ -61,11 +66,19 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
   } else if (activeModule === 'entity_directory') {
     const response = await getEntities(TENANT_ID);
     moduleData = response.data || [];
+  } else if (activeModule === 'bills') {
+    const response = await getBills(TENANT_ID);
+    moduleData = response.data || [];
+  } else if (activeModule === 'invoices') {
+    const response = await getInvoices(TENANT_ID);
+    moduleData = response.data || [];
+  } else if (activeModule === 'user_management' && USER_ROLE === 'ADMIN') {
+    const response = await getUsers(TENANT_ID);
+    moduleData = response.data || [];
   } else if (activeModule === 'purchase_orders' && action === 'list') {
     const response = await getPurchaseOrders(TENANT_ID);
     moduleData = response.data || [];
   } else if (activeModule === 'purchase_orders' && action === 'create') {
-    // Fetch BOTH items and entities for the form
     const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
     itemsList = itemRes.data || [];
     entitiesList = entRes.data || [];
@@ -73,7 +86,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
     const response = await getSalesOrders(TENANT_ID);
     moduleData = response.data || [];
   } else if (activeModule === 'sales_orders' && action === 'create') {
-    // Fetch BOTH items and entities for the form
     const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
     itemsList = itemRes.data || [];
     entitiesList = entRes.data || [];
@@ -119,7 +131,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
       allowed: ['ADMIN', 'SALES'],
       items: [
         { id: 'sales_orders', icon: FileCheck, label: 'Sales Orders' },
-        { id: 'invoices', icon: FileText, label: 'A/R Invoices' },
+        { id: 'invoices', icon: Receipt, label: 'A/R Invoices' },
         { id: 'payments_in', icon: CreditCard, label: 'Receive Payments' }
       ]
     },
@@ -129,6 +141,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
       items: [
         { id: 'chart_of_accounts', icon: Landmark, label: 'Chart of Accounts' },
         { id: 'journal_entries', icon: FileText, label: 'Journal Entries' }
+      ]
+    },
+    {
+      label: "Administration",
+      allowed: ['ADMIN'],
+      items: [
+        { id: 'user_management', icon: Shield, label: 'User Management' }
       ]
     }
   ].filter(group => group.allowed.includes(USER_ROLE));
@@ -246,6 +265,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
               <ItemMaster items={moduleData || []} />
             ) : activeModule === 'entity_directory' ? (
               <EntityDirectory entities={moduleData || []} tenantId={TENANT_ID} />
+            ) : activeModule === 'bills' ? (
+              <BillList bills={moduleData || []} />
+            ) : activeModule === 'invoices' ? (
+              <InvoiceList invoices={moduleData || []} />
+            ) : activeModule === 'user_management' ? (
+              <UserManagement users={moduleData || []} tenantId={TENANT_ID} />
             ) : activeModule === 'journal_entries' ? (
               action === 'create' ? (
                 <div className="space-y-6">

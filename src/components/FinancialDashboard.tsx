@@ -1,11 +1,33 @@
+"use client";
+
 import React from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Wallet, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Wallet, ArrowUpRight, ArrowDownRight, BarChart3 } from 'lucide-react';
+import { 
+    BarChart, 
+    Bar, 
+    XAxis, 
+    YAxis, 
+    CartesianGrid, 
+    Tooltip, 
+    ResponsiveContainer,
+    Cell
+} from 'recharts';
 
 export default function FinancialDashboard({ metrics }: { metrics: any }) {
     const safeMetrics = metrics || { operatingCash: 0, revenue: 0, expenses: 0, netIncome: 0 };
 
     const formatCurrency = (val: number) =>
-        new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+        new Intl.NumberFormat('en-US', { 
+            style: 'currency', 
+            currency: 'USD',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(val);
+
+    const chartData = [
+        { name: 'Revenue', value: safeMetrics.revenue, color: '#10b981' },
+        { name: 'Expenses', value: safeMetrics.expenses, color: '#f43f5e' },
+    ];
 
     const StatCard = ({ title, value, icon: Icon, trend, type }: any) => (
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm relative overflow-hidden group">
@@ -27,7 +49,7 @@ export default function FinancialDashboard({ metrics }: { metrics: any }) {
             </div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{title}</p>
             <h3 className={`text-3xl font-light tracking-tight mt-1 ${value < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
-                {formatCurrency(value)}
+                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)}
             </h3>
         </div>
     );
@@ -35,14 +57,19 @@ export default function FinancialDashboard({ metrics }: { metrics: any }) {
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between bg-slate-900 text-white p-6 rounded-xl shadow-lg">
-                <div>
-                    <h1 className="text-xl font-bold uppercase tracking-wider">Executive Overview</h1>
-                    <p className="text-xs text-slate-400 mt-1 font-mono">Real-time General Ledger Aggregation</p>
+                <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-sky-500/20 rounded-lg text-sky-400">
+                        <BarChart3 size={24} />
+                    </div>
+                    <div>
+                        <h1 className="text-xl font-bold uppercase tracking-wider">Executive Overview</h1>
+                        <p className="text-xs text-slate-400 mt-1 font-mono">Real-time General Ledger Aggregation</p>
+                    </div>
                 </div>
                 <div className="text-right">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Net Income (YTD)</p>
                     <p className={`text-4xl font-light font-mono ${safeMetrics.netIncome >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {formatCurrency(safeMetrics.netIncome)}
+                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(safeMetrics.netIncome)}
                     </p>
                 </div>
             </div>
@@ -70,10 +97,55 @@ export default function FinancialDashboard({ metrics }: { metrics: any }) {
                 />
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center h-64 text-slate-400">
-                <DollarSign size={48} className="mb-4 text-slate-200" />
-                <p className="text-sm font-medium">Income Statement Visualization</p>
-                <p className="text-xs text-slate-400 mt-1">Chart components will be injected here in Phase 7.</p>
+            <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
+                <div className="flex items-center justify-between mb-8">
+                    <div>
+                        <h3 className="text-lg font-bold text-slate-800 uppercase tracking-wider">Income Statement Visualization</h3>
+                        <p className="text-xs text-slate-500 mt-1">Comparison of total revenue vs operating expenses.</p>
+                    </div>
+                    <div className="flex items-center space-x-4 text-[10px] font-bold uppercase tracking-widest">
+                        <div className="flex items-center"><div className="w-3 h-3 bg-emerald-500 rounded mr-2" /> Revenue</div>
+                        <div className="flex items-center"><div className="w-3 h-3 bg-rose-500 rounded mr-2" /> Expenses</div>
+                    </div>
+                </div>
+                
+                <div className="h-80 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis 
+                                dataKey="name" 
+                                axisLine={false} 
+                                tickLine={false} 
+                                tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 'bold' }}
+                                dy={10}
+                            />
+                            <YAxis 
+                                axisLine={false} 
+                                tickLine={false} 
+                                tick={{ fill: '#94a3b8', fontSize: 10 }}
+                                tickFormatter={formatCurrency}
+                            />
+                            <Tooltip 
+                                cursor={{ fill: '#f8fafc' }}
+                                contentStyle={{ 
+                                    borderRadius: '12px', 
+                                    border: '1px solid #e2e8f0',
+                                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                                    fontSize: '12px',
+                                    fontWeight: 'bold',
+                                    textTransform: 'uppercase'
+                                }}
+                                formatter={(value: number) => [formatCurrency(value), 'Amount']}
+                            />
+                            <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={60}>
+                                {chartData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
             </div>
         </div>
     );

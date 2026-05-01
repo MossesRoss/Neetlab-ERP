@@ -1,8 +1,45 @@
-import React from 'react';
+"use client";
+
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { Plus, Search, FileText } from 'lucide-react';
+import { Plus, Search, FileText, Package, Loader2, Receipt } from 'lucide-react';
+import { receivePurchaseOrder } from '@/actions/inventory';
+import { generateBillFromPO } from '@/actions/billing';
 
 export default function PurchaseOrderList({ orders }: { orders: any[] }) {
+    const [loadingId, setLoadingId] = useState<string | null>(null);
+    const tenantId = '11111111-1111-1111-1111-111111111111';
+
+    const handleReceive = async (e: React.MouseEvent, poId: string) => {
+        e.stopPropagation();
+        e.preventDefault();
+        
+        if (!confirm("Are you sure you want to receive these goods into inventory?")) return;
+
+        setLoadingId(poId);
+        const result = await receivePurchaseOrder(tenantId, poId);
+        if (!result.success) {
+            alert("Error receiving goods: " + result.error);
+        }
+        setLoadingId(null);
+    };
+
+    const handleGenerateBill = async (e: React.MouseEvent, poId: string) => {
+        e.stopPropagation();
+        e.preventDefault();
+
+        if (!confirm("Generate Vendor Bill and post to Ledger (A/P)?")) return;
+
+        setLoadingId(poId);
+        const result = await generateBillFromPO(tenantId, poId);
+        if (result.success) {
+            alert("Bill Generated and Ledger Updated!");
+        } else {
+            alert("Error: " + result.error);
+        }
+        setLoadingId(null);
+    };
+
     return (
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
             <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50">
@@ -27,12 +64,13 @@ export default function PurchaseOrderList({ orders }: { orders: any[] }) {
                             <th className="px-6 py-4">Vendor</th>
                             <th className="px-6 py-4">Status</th>
                             <th className="px-6 py-4 text-right">Total Amount</th>
+                            <th className="px-6 py-4 text-center">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700">
                         {orders.length === 0 ? (
                             <tr>
-                                <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                                <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
                                     <FileText size={32} className="mx-auto mb-3 opacity-50" />
                                     <p>No Purchase Orders found for this tenant.</p>
                                 </td>
@@ -46,12 +84,50 @@ export default function PurchaseOrderList({ orders }: { orders: any[] }) {
                                     <td className="px-6 py-4 font-mono text-xs">{order.transaction_date}</td>
                                     <td className="px-6 py-4 font-medium">{order.entities?.name || 'Unknown Vendor'}</td>
                                     <td className="px-6 py-4">
-                                        <span className="px-2.5 py-1 bg-amber-100 text-amber-700 border border-amber-200 rounded text-[10px] font-bold uppercase tracking-wider">
+                                        <span className={`px-2.5 py-1 border rounded text-[10px] font-bold uppercase tracking-wider ${
+                                            order.status === 'FULFILLED' 
+                                            ? 'bg-emerald-100 text-emerald-700 border-emerald-200' 
+                                            : order.status === 'BILLED'
+                                            ? 'bg-sky-100 text-sky-700 border-sky-200'
+                                            : 'bg-amber-100 text-amber-700 border-amber-200'
+                                        }`}>
                                             {order.status.replace('_', ' ')}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-right font-mono font-medium text-slate-900">
                                         ${Number(order.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                    </td>
+                                    <td className="px-6 py-4 text-center">
+                                        {order.status === 'PENDING_APPROVAL' && (
+                                            <button
+                                                onClick={(e) => handleReceive(e, order.id)}
+                                                disabled={loadingId === order.id}
+                                                className="flex items-center space-x-1 mx-auto bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all shadow-sm disabled:opacity-50"
+                                                title="Receive Goods"
+                                            >
+                                                {loadingId === order.id ? (
+                                                    <Loader2 size={12} className="animate-spin" />
+                                                ) : (
+                                                    <Package size={12} />
+                                                )}
+                                                <span>Receive</span>
+                                            </button>
+                                        )}
+                                        {order.status === 'FULFILLED' && (
+                                            <button
+                                                onClick={(e) => handleGenerateBill(e, order.id)}
+                                                disabled={loadingId === order.id}
+                                                className="flex items-center space-x-1 mx-auto bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all shadow-sm disabled:opacity-50"
+                                                title="Generate Vendor Bill"
+                                            >
+                                                {loadingId === order.id ? (
+                                                    <Loader2 size={12} className="animate-spin" />
+                                                ) : (
+                                                    <Receipt size={12} />
+                                                )}
+                                                <span>Bill PO</span>
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))

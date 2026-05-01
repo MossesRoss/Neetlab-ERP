@@ -82,13 +82,14 @@ export default function ItemMaster({ items }: { items: any[] }) {
                                 <th className="px-6 py-4">SKU</th>
                                 <th className="px-6 py-4">Item Name</th>
                                 <th className="px-6 py-4">Type</th>
+                                <th className="px-6 py-4 text-right">Stock Qty</th>
                                 <th className="px-6 py-4 text-right">Default Price</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-slate-700">
                             {items.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
+                                    <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
                                         <Box size={32} className="mx-auto mb-3 opacity-50" />
                                         <p>No items found in the master catalog.</p>
                                     </td>
@@ -102,6 +103,9 @@ export default function ItemMaster({ items }: { items: any[] }) {
                                             <span className="px-2.5 py-1 bg-slate-100 text-slate-600 border border-slate-200 rounded text-[10px] font-bold uppercase tracking-wider">
                                                 {item.type}
                                             </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-right font-mono font-bold text-slate-900">
+                                            {Number(item.stock_quantity || 0).toLocaleString()}
                                         </td>
                                         <td className="px-6 py-4 text-right font-mono font-medium text-slate-900">
                                             ${Number(item.unit_price).toLocaleString('en-US', { minimumFractionDigits: 2 })}

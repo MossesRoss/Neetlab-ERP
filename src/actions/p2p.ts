@@ -24,6 +24,7 @@ export async function createPurchaseOrder(formData: any) {
             calculatedTotal += lineTotal;
 
             return {
+                item_id: line.itemId,
                 description: line.description,
                 quantity: quantity,
                 unit_price: unitPrice,

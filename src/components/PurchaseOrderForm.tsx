@@ -16,15 +16,21 @@ export default function PurchaseOrderForm({ items = [], entities = [] }: { items
     const vendors = entities.filter(e => e.type === 'VENDOR');
 
     const [lines, setLines] = useState([
-        { id: '1', sku: '', description: '', quantity: 1, unitPrice: 0 }
+        { id: '1', itemId: '', sku: '', description: '', quantity: 1, unitPrice: 0 }
     ]);
 
     const addLine = () => {
-        setLines([...lines, { id: crypto.randomUUID(), sku: '', description: '', quantity: 1, unitPrice: 0 }]);
+        setLines([...lines, { id: crypto.randomUUID(), itemId: '', sku: '', description: '', quantity: 1, unitPrice: 0 }]);
     };
 
     const updateLine = (id: string, field: string, value: string | number) => {
         setLines(lines.map(line => line.id === id ? { ...line, [field]: value } : line));
+    };
+
+    const removeLine = (id: string) => {
+        if (lines.length > 1) {
+            setLines(lines.filter(line => line.id !== id));
+        }
     };
 
     const handleItemSelect = (id: string, selectedSku: string) => {
@@ -33,12 +39,14 @@ export default function PurchaseOrderForm({ items = [], entities = [] }: { items
             setLines(lines.map(line =>
                 line.id === id ? {
                     ...line,
+                    itemId: item.id,
                     sku: selectedSku,
                     description: `[${item.sku}] ${item.name}`,
                     unitPrice: item.unit_price
                 } : line
             ));
         } else {
+            updateLine(id, 'itemId', '');
             updateLine(id, 'sku', '');
             updateLine(id, 'description', '');
             updateLine(id, 'unitPrice', 0);
