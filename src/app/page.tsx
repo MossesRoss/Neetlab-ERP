@@ -10,15 +10,17 @@ import ChartOfAccounts from "@/components/ChartOfAccounts";
 import JournalEntryForm from "@/components/JournalEntryForm";
 import JournalEntryList from "@/components/JournalEntryList";
 import FinancialDashboard from "@/components/FinancialDashboard";
-import ItemMaster from "@/components/ItemMaster"; // NEW IMPORT
+import ItemMaster from "@/components/ItemMaster";
+import EntityDirectory from "@/components/EntityDirectory"; // NEW IMPORT
 import { getPurchaseOrders } from "@/actions/p2p";
 import { getSalesOrders } from "@/actions/o2c";
 import { getAccounts, getJournalEntries } from "@/actions/gl";
 import { getFinancialSummary } from "@/actions/dashboard";
-import { getItems } from "@/actions/items"; // NEW IMPORT
+import { getItems } from "@/actions/items";
+import { getEntities } from "@/actions/entities"; // NEW IMPORT
 import {
   Building2, LayoutDashboard, ShoppingCart,
-  FileText, ArrowRightLeft, Landmark, FileCheck, CreditCard, Package
+  FileText, ArrowRightLeft, Landmark, FileCheck, CreditCard, Package, Users, AlertTriangle
 } from "lucide-react";
 
 // In Next.js 15, searchParams is asynchronous. 
@@ -26,20 +28,27 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
   // 1. SECURE TENANT INTERCEPTION
   const cookieStore = await cookies();
   const tenantIdCookie = cookieStore.get('tenant_id');
+  const userRoleCookie = cookieStore.get('user_role');
+  const userEmailCookie = cookieStore.get('user_email');
 
   // If no secure session exists, halt the application and render the login gateway.
   if (!tenantIdCookie?.value) {
     return <LoginForm />;
   }
 
-  // 2. DYNAMIC TENANT ASSIGNMENT
+  // 2. DYNAMIC TENANT & ROLE ASSIGNMENT
   const TENANT_ID = tenantIdCookie.value;
+  const USER_ROLE = userRoleCookie?.value || 'ADMIN';
+  const USER_EMAIL = userEmailCookie?.value || 'admin@core.com';
 
   const params = await searchParams;
-  const activeModule = params.module || 'dashboard';
+  // Default to the most relevant dashboard based on role
+  const defaultModule = USER_ROLE === 'SALES' ? 'sales_orders' : USER_ROLE === 'PROCUREMENT' ? 'purchase_orders' : 'dashboard';
+  const activeModule = params.module || defaultModule;
   const action = params.action || 'list';
   let accountsList = [];
   let itemsList = [];
+  let entitiesList = []; // NEW: Array for our entities
   let moduleData: any = null;
 
   // Fetch data on the server based on the active module
@@ -49,18 +58,25 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
   } else if (activeModule === 'item_master') {
     const response = await getItems(TENANT_ID);
     moduleData = response.data || [];
+  } else if (activeModule === 'entity_directory') {
+    const response = await getEntities(TENANT_ID);
+    moduleData = response.data || [];
   } else if (activeModule === 'purchase_orders' && action === 'list') {
     const response = await getPurchaseOrders(TENANT_ID);
     moduleData = response.data || [];
   } else if (activeModule === 'purchase_orders' && action === 'create') {
-    const response = await getItems(TENANT_ID);
-    itemsList = response.data || [];
+    // Fetch BOTH items and entities for the form
+    const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
+    itemsList = itemRes.data || [];
+    entitiesList = entRes.data || [];
   } else if (activeModule === 'sales_orders' && action === 'list') {
     const response = await getSalesOrders(TENANT_ID);
     moduleData = response.data || [];
   } else if (activeModule === 'sales_orders' && action === 'create') {
-    const response = await getItems(TENANT_ID);
-    itemsList = response.data || [];
+    // Fetch BOTH items and entities for the form
+    const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
+    itemsList = itemRes.data || [];
+    entitiesList = entRes.data || [];
   } else if (activeModule === 'chart_of_accounts') {
     const response = await getAccounts(TENANT_ID);
     moduleData = response.data || [];
@@ -74,18 +90,24 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
     }
   }
 
-  // Define our Sidebar Menu
+  // 3. STRICT ROLE-BASED MENU FILTERING
   const menuGroups = [
     {
       label: "Enterprise",
+      allowed: ['ADMIN'],
       items: [{ id: 'dashboard', icon: LayoutDashboard, label: 'Financial Dashboard' }]
     },
     {
       label: "Master Data",
-      items: [{ id: 'item_master', icon: Package, label: 'Item Catalog' }]
+      allowed: ['ADMIN', 'PROCUREMENT', 'SALES'],
+      items: [
+        { id: 'item_master', icon: Package, label: 'Item Catalog', roles: ['ADMIN', 'PROCUREMENT'] },
+        { id: 'entity_directory', icon: Users, label: 'Entity Directory', roles: ['ADMIN', 'SALES'] }
+      ].filter(item => item.roles.includes(USER_ROLE))
     },
     {
       label: "Procure to Pay (P2P)",
+      allowed: ['ADMIN', 'PROCUREMENT'],
       items: [
         { id: 'purchase_orders', icon: ShoppingCart, label: 'Purchase Orders' },
         { id: 'bills', icon: FileText, label: 'A/P Bills' },
@@ -94,6 +116,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
     },
     {
       label: "Order to Cash (O2C)",
+      allowed: ['ADMIN', 'SALES'],
       items: [
         { id: 'sales_orders', icon: FileCheck, label: 'Sales Orders' },
         { id: 'invoices', icon: FileText, label: 'A/R Invoices' },
@@ -102,12 +125,16 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
     },
     {
       label: "Financials (GL)",
+      allowed: ['ADMIN'],
       items: [
         { id: 'chart_of_accounts', icon: Landmark, label: 'Chart of Accounts' },
         { id: 'journal_entries', icon: FileText, label: 'Journal Entries' }
       ]
     }
-  ];
+  ].filter(group => group.allowed.includes(USER_ROLE));
+
+  // Security Guard: Prevent URL tampering from accessing unauthorized modules
+  const isAuthorized = menuGroups.some(group => group.items.some(item => item.id === activeModule));
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col">
@@ -121,15 +148,24 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
         </div>
         <div className="flex items-center space-x-4">
           <div className="text-right">
-            <p className="text-xs font-bold text-slate-800">Admin User</p>
-            <form action={logout}>
-              <button type="submit" className="text-[10px] font-bold text-rose-500 uppercase tracking-widest hover:text-rose-600 transition-colors">
-                Log Out
-              </button>
-            </form>
+            <p className="text-xs font-bold text-slate-800 capitalize">{USER_EMAIL.split('@')[0]}</p>
+            <div className="flex items-center justify-end space-x-2">
+              {/* Dynamic Role Badge */}
+              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-widest ${USER_ROLE === 'ADMIN' ? 'bg-indigo-100 text-indigo-700' :
+                  USER_ROLE === 'SALES' ? 'bg-emerald-100 text-emerald-700' :
+                    'bg-sky-100 text-sky-700'
+                }`}>
+                {USER_ROLE}
+              </span>
+              <form action={logout}>
+                <button type="submit" className="text-[10px] font-bold text-rose-500 uppercase tracking-widest hover:text-rose-600 transition-colors mt-0.5">
+                  Log Out
+                </button>
+              </form>
+            </div>
           </div>
-          <div className="w-8 h-8 bg-slate-800 text-white font-bold rounded-full flex items-center justify-center text-xs">
-            AD
+          <div className="w-8 h-8 bg-slate-800 text-white font-bold rounded-full flex items-center justify-center text-xs uppercase">
+            {USER_EMAIL.charAt(0)}
           </div>
         </div>
       </header>
@@ -170,7 +206,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
         <main className="flex-1 overflow-y-auto p-8">
           <div className="max-w-6xl mx-auto">
 
-            {activeModule === 'dashboard' ? (
+            {!isAuthorized ? (
+              <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-red-200 rounded-xl bg-red-50/50">
+                <AlertTriangle size={48} className="text-red-400 mb-4" />
+                <h2 className="text-lg font-bold text-red-800 capitalize tracking-wide">Access Denied</h2>
+                <p className="text-sm text-red-600 mt-2">Your current role ({USER_ROLE}) is not authorized to view this module.</p>
+              </div>
+            ) : activeModule === 'dashboard' ? (
               <FinancialDashboard metrics={moduleData} />
             ) : activeModule === 'purchase_orders' ? (
               action === 'create' ? (
@@ -180,7 +222,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
                     <span>/</span>
                     <span className="text-slate-800">Create New</span>
                   </div>
-                  <PurchaseOrderForm items={itemsList} />
+                  <PurchaseOrderForm items={itemsList} entities={entitiesList} />
                 </div>
               ) : (
                 <PurchaseOrderList orders={moduleData || []} />
@@ -193,7 +235,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
                     <span>/</span>
                     <span className="text-slate-800">Create New</span>
                   </div>
-                  <SalesOrderForm items={itemsList} />
+                  <SalesOrderForm items={itemsList} entities={entitiesList} />
                 </div>
               ) : (
                 <SalesOrderList orders={moduleData || []} />
@@ -202,6 +244,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
               <ChartOfAccounts accounts={moduleData || []} />
             ) : activeModule === 'item_master' ? (
               <ItemMaster items={moduleData || []} />
+            ) : activeModule === 'entity_directory' ? (
+              <EntityDirectory entities={moduleData || []} tenantId={TENANT_ID} />
             ) : activeModule === 'journal_entries' ? (
               action === 'create' ? (
                 <div className="space-y-6">

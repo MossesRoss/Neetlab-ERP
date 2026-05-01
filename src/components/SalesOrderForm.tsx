@@ -4,13 +4,16 @@ import React, { useState } from 'react';
 import { createSalesOrder } from '@/actions/o2c';
 import { Plus, Trash2, Save, FileCheck, Loader2 } from 'lucide-react';
 
-export default function SalesOrderForm({ items = [] }: { items?: any[] }) {
+export default function SalesOrderForm({ items = [], entities = [] }: { items?: any[], entities?: any[] }) {
     const [loading, setLoading] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
 
+    // No more hardcoded Customer ID!
     const tenantId = '11111111-1111-1111-1111-111111111111';
-    const customerId = '33333333-3333-3333-3333-333333333333';
+    const [customerId, setCustomerId] = useState('');
+
+    const customers = entities.filter(e => e.type === 'CUSTOMER');
 
     const [lines, setLines] = useState([
         { id: '1', sku: '', description: '', quantity: 1, unitPrice: 0 }
@@ -44,12 +47,12 @@ export default function SalesOrderForm({ items = [] }: { items?: any[] }) {
         e.preventDefault();
         setLoading(true); setSuccessMsg(''); setErrorMsg('');
 
-        const validLines = lines.filter(l => l.description.trim() !== '');
-        if (validLines.length === 0) {
-            setErrorMsg("Please enter at least one valid line item.");
+        if (!customerId) {
+            setErrorMsg("Please select a customer for this Sales Order.");
             setLoading(false); return;
         }
 
+        const validLines = lines.filter(l => l.sku !== '');
         const payload = { tenantId, customerId, lines: validLines };
         const response = await createSalesOrder(payload);
 
@@ -64,11 +67,29 @@ export default function SalesOrderForm({ items = [] }: { items?: any[] }) {
 
     return (
         <div className="max-w-4xl mx-auto bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-            <div className="bg-emerald-950 text-white p-6 flex items-center space-x-3">
-                <FileCheck size={24} className="text-emerald-400" />
-                <div>
-                    <h2 className="text-lg font-bold tracking-wider uppercase">Create Sales Order</h2>
-                    <p className="text-xs text-emerald-200/60 font-mono mt-1">Customer: Wayne Enterprises</p>
+            <div className="bg-emerald-950 text-white p-6 flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                    <FileCheck size={24} className="text-emerald-400" />
+                    <div>
+                        <h2 className="text-lg font-bold tracking-wider uppercase">Create Sales Order</h2>
+                        <p className="text-xs text-emerald-200/60 font-mono mt-1">O2C Revenue Pipeline</p>
+                    </div>
+                </div>
+
+                {/* New Customer Selection Dropdown */}
+                <div className="w-72">
+                    <label className="block text-[10px] font-bold text-emerald-400/70 uppercase tracking-wider mb-1">Select Customer</label>
+                    <select
+                        required
+                        value={customerId}
+                        onChange={(e) => setCustomerId(e.target.value)}
+                        className="w-full bg-emerald-900 border border-emerald-800 rounded-md p-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+                    >
+                        <option value="">-- Choose Customer --</option>
+                        {customers.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                    </select>
                 </div>
             </div>
 

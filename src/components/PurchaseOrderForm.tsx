@@ -4,14 +4,16 @@ import React, { useState } from 'react';
 import { createPurchaseOrder } from '@/actions/p2p';
 import { Plus, Trash2, Save, ShoppingCart, Loader2 } from 'lucide-react';
 
-export default function PurchaseOrderForm({ items = [] }: { items?: any[] }) {
+export default function PurchaseOrderForm({ items = [], entities = [] }: { items?: any[], entities?: any[] }) {
     const [loading, setLoading] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
 
-    // Using the hardcoded UUIDs from our SQL seed script for testing
+    // No more hardcoded Vendor ID!
     const tenantId = '11111111-1111-1111-1111-111111111111';
-    const vendorId = '22222222-2222-2222-2222-222222222222';
+    const [vendorId, setVendorId] = useState('');
+
+    const vendors = entities.filter(e => e.type === 'VENDOR');
 
     const [lines, setLines] = useState([
         { id: '1', sku: '', description: '', quantity: 1, unitPrice: 0 }
@@ -52,14 +54,14 @@ export default function PurchaseOrderForm({ items = [] }: { items?: any[] }) {
         setSuccessMsg('');
         setErrorMsg('');
 
-        // Ensure no empty lines are sent
-        const validLines = lines.filter(l => l.description.trim() !== '');
-        if (validLines.length === 0) {
-            setErrorMsg("Please enter at least one valid line item.");
+        if (!vendorId) {
+            setErrorMsg("Please select a vendor for this Purchase Order.");
             setLoading(false);
             return;
         }
 
+        // Ensure no empty lines are sent
+        const validLines = lines.filter(l => l.sku !== '');
         const payload = { tenantId, vendorId, lines: validLines };
         const response = await createPurchaseOrder(payload);
 
@@ -75,11 +77,29 @@ export default function PurchaseOrderForm({ items = [] }: { items?: any[] }) {
 
     return (
         <div className="max-w-4xl mx-auto bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-            <div className="bg-slate-900 text-white p-6 flex items-center space-x-3">
-                <ShoppingCart size={24} className="text-sky-400" />
-                <div>
-                    <h2 className="text-lg font-bold tracking-wider uppercase">Create Purchase Order</h2>
-                    <p className="text-xs text-slate-400 font-mono mt-1">Vendor: Stark Industries Logistics</p>
+            <div className="bg-slate-900 text-white p-6 flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                    <ShoppingCart size={24} className="text-sky-400" />
+                    <div>
+                        <h2 className="text-lg font-bold tracking-wider uppercase">Create Purchase Order</h2>
+                        <p className="text-xs text-slate-400 font-mono mt-1">P2P Procurement Pipeline</p>
+                    </div>
+                </div>
+
+                {/* New Vendor Selection Dropdown */}
+                <div className="w-72">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Select Vendor</label>
+                    <select
+                        required
+                        value={vendorId}
+                        onChange={(e) => setVendorId(e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-md p-2 text-sm text-white focus:outline-none focus:border-sky-500"
+                    >
+                        <option value="">-- Choose Vendor --</option>
+                        {vendors.map(v => (
+                            <option key={v.id} value={v.id}>{v.name}</option>
+                        ))}
+                    </select>
                 </div>
             </div>
 
