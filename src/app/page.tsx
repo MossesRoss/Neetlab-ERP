@@ -3,8 +3,12 @@ import PurchaseOrderForm from "@/components/PurchaseOrderForm";
 import PurchaseOrderList from "@/components/PurchaseOrderList";
 import SalesOrderForm from "@/components/SalesOrderForm";
 import SalesOrderList from "@/components/SalesOrderList";
+import ChartOfAccounts from "@/components/ChartOfAccounts";
+import JournalEntryForm from "@/components/JournalEntryForm";
+import JournalEntryList from "@/components/JournalEntryList";
 import { getPurchaseOrders } from "@/actions/p2p";
 import { getSalesOrders } from "@/actions/o2c";
+import { getAccounts, getJournalEntries } from "@/actions/gl";
 import {
   Building2, LayoutDashboard, ShoppingCart,
   FileText, ArrowRightLeft, Landmark, FileCheck, CreditCard
@@ -21,12 +25,25 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
 
   // Fetch data on the server based on the active module
   let moduleData = null;
+  let accountsList = []; // We need this to populate the Journal Entry form dropdown
+
   if (activeModule === 'purchase_orders' && action === 'list') {
     const response = await getPurchaseOrders(TENANT_ID);
     moduleData = response.data || [];
   } else if (activeModule === 'sales_orders' && action === 'list') {
     const response = await getSalesOrders(TENANT_ID);
     moduleData = response.data || [];
+  } else if (activeModule === 'chart_of_accounts') {
+    const response = await getAccounts(TENANT_ID);
+    moduleData = response.data || [];
+  } else if (activeModule === 'journal_entries') {
+    if (action === 'create') {
+      const accRes = await getAccounts(TENANT_ID);
+      accountsList = accRes.data || [];
+    } else {
+      const response = await getJournalEntries(TENANT_ID);
+      moduleData = response.data || [];
+    }
   }
 
   // Define our Sidebar Menu
@@ -54,7 +71,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
     {
       label: "Financials (GL)",
       items: [
-        { id: 'chart_of_accounts', icon: Landmark, label: 'Chart of Accounts' }
+        { id: 'chart_of_accounts', icon: Landmark, label: 'Chart of Accounts' },
+        { id: 'journal_entries', icon: FileText, label: 'Journal Entries' }
       ]
     }
   ];
@@ -141,6 +159,21 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
                 </div>
               ) : (
                 <SalesOrderList orders={moduleData || []} />
+              )
+            ) : activeModule === 'chart_of_accounts' ? (
+              <ChartOfAccounts accounts={moduleData || []} />
+            ) : activeModule === 'journal_entries' ? (
+              action === 'create' ? (
+                <div className="space-y-6">
+                  <div className="flex items-center space-x-2 text-sm text-slate-500 font-medium">
+                    <Link href="/?module=journal_entries&action=list" className="hover:text-indigo-600">Journal Entries</Link>
+                    <span>/</span>
+                    <span className="text-slate-800">Post Entry</span>
+                  </div>
+                  <JournalEntryForm accounts={accountsList} />
+                </div>
+              ) : (
+                <JournalEntryList entries={moduleData || []} />
               )
             ) : (
               <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
