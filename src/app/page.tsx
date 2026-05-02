@@ -4,6 +4,11 @@ import LoginForm from "@/components/LoginForm";
 import { logout } from "@/actions/auth";
 import PurchaseOrderForm from "@/components/PurchaseOrderForm";
 import PurchaseOrderList from "@/components/PurchaseOrderList";
+import GRNList from "@/components/GRNList";
+import JobCardList from "@/components/JobCardList";
+import JobCardForm from "@/components/JobCardForm";
+import DeliveryChallanList from "@/components/DeliveryChallanList";
+import DeliveryChallanForm from "@/components/DeliveryChallanForm";
 import SalesOrderForm from "@/components/SalesOrderForm";
 import SalesOrderList from "@/components/SalesOrderList";
 import ChartOfAccounts from "@/components/ChartOfAccounts";
@@ -16,8 +21,12 @@ import BillList from "@/components/BillList";
 import InvoiceList from "@/components/InvoiceList";
 import PrintableInvoice from "@/components/PrintableInvoice";
 import UserManagement from "@/components/UserManagement";
-import PeriodManagement from "@/components/PeriodManagement"; // NEW IMPORT
+import StockReport from "@/components/StockReport";
+import PeriodManagement from "@/components/PeriodManagement";
 import { getPurchaseOrders } from "@/actions/p2p";
+import { getGRNs } from "@/actions/inventory";
+import { getJobCards } from "@/actions/production";
+import { getDeliveryChallans } from "@/actions/subcontracting";
 import { getSalesOrders } from "@/actions/o2c";
 import { getAccounts, getJournalEntries } from "@/actions/gl";
 import { getFinancialSummary } from "@/actions/dashboard";
@@ -27,7 +36,7 @@ import { getBills, getInvoices, getInvoiceDetails } from "@/actions/billing";
 import { getUsers } from "@/actions/admin";
 import {
   Building2, LayoutDashboard, ShoppingCart,
-  FileText, ArrowRightLeft, Landmark, FileCheck, CreditCard, Package, Users, AlertTriangle, Receipt, Shield
+  FileText, ArrowRightLeft, Landmark, FileCheck, CreditCard, Package, Users, AlertTriangle, Receipt, Shield, Wrench, BarChart2, Truck
 } from "lucide-react";
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ module?: string, action?: string, id?: string }> }) {
@@ -82,6 +91,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
   } else if (activeModule === 'bills') {
     const response = await getBills(TENANT_ID);
     moduleData = response.data || [];
+  } else if (activeModule === 'stock_reports') {
+    moduleData = [];
   } else if (activeModule === 'invoices') {
     const response = await getInvoices(TENANT_ID);
     moduleData = response.data || [];
@@ -94,6 +105,22 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
     const response = await getPurchaseOrders(TENANT_ID);
     moduleData = response.data || [];
   } else if (activeModule === 'purchase_orders' && action === 'create') {
+    const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
+    itemsList = itemRes.data || [];
+    entitiesList = entRes.data || [];
+  } else if (activeModule === 'grns') {
+    const response = await getGRNs(TENANT_ID);
+    moduleData = response.data || [];
+  } else if (activeModule === 'job_cards' && action === 'list') {
+    const response = await getJobCards(TENANT_ID);
+    moduleData = response.data || [];
+  } else if (activeModule === 'job_cards' && action === 'create') {
+    const response = await getItems(TENANT_ID);
+    itemsList = response.data || [];
+  } else if (activeModule === 'delivery_challans' && action === 'list') {
+    const response = await getDeliveryChallans(TENANT_ID);
+    moduleData = response.data || [];
+  } else if (activeModule === 'delivery_challans' && action === 'create') {
     const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
     itemsList = itemRes.data || [];
     entitiesList = entRes.data || [];
@@ -133,10 +160,19 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
       ].filter(item => item.roles.includes(USER_ROLE))
     },
     {
+      label: "Manufacturing",
+      allowed: ['ADMIN', 'PROCUREMENT'],
+      items: [
+        { id: 'job_cards', icon: Wrench, label: 'Job Cards' },
+        { id: 'delivery_challans', icon: Truck, label: 'Delivery Challans' }
+      ]
+    },
+    {
       label: "Procure to Pay (P2P)",
       allowed: ['ADMIN', 'PROCUREMENT'],
       items: [
         { id: 'purchase_orders', icon: ShoppingCart, label: 'Purchase Orders' },
+        { id: 'grns', icon: Package, label: 'Goods Receipts (GRN)' },
         { id: 'bills', icon: FileText, label: 'A/P Bills' },
         { id: 'payments_out', icon: ArrowRightLeft, label: 'Vendor Payments' }
       ]
@@ -156,6 +192,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
       items: [
         { id: 'chart_of_accounts', icon: Landmark, label: 'Chart of Accounts' },
         { id: 'journal_entries', icon: FileText, label: 'Journal Entries' }
+      ]
+    },
+    {
+      label: "Reports",
+      allowed: ['ADMIN', 'PROCUREMENT', 'SALES'],
+      items: [
+        { id: 'stock_reports', icon: BarChart2, label: 'Stock Reports' }
       ]
     },
     {
@@ -262,6 +305,20 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
               ) : (
                 <PurchaseOrderList orders={moduleData || []} />
               )
+            ) : activeModule === 'grns' ? (
+              <GRNList grns={moduleData || []} />
+            ) : activeModule === 'job_cards' ? (
+              action === 'create' ? (
+                <JobCardForm items={itemsList} tenantId={TENANT_ID} />
+              ) : (
+                <JobCardList jobs={moduleData || []} tenantId={TENANT_ID} />
+              )
+            ) : activeModule === 'delivery_challans' ? (
+              action === 'create' ? (
+                <DeliveryChallanForm items={itemsList} entities={entitiesList} tenantId={TENANT_ID} />
+              ) : (
+                <DeliveryChallanList dcs={moduleData || []} tenantId={TENANT_ID} />
+              )
             ) : activeModule === 'sales_orders' ? (
               action === 'create' ? (
                 <div className="space-y-6">
@@ -277,6 +334,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
               )
             ) : activeModule === 'invoices' ? (
               <InvoiceList invoices={moduleData || []} />
+            ) : activeModule === 'stock_reports' ? (
+              <StockReport tenantId={TENANT_ID} />
             ) : activeModule === 'period_management' ? (
               <PeriodManagement tenantId={TENANT_ID} />
             ) : activeModule === 'user_management' ? (
