@@ -343,7 +343,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
             ) : activeModule === 'chart_of_accounts' ? (
               <ChartOfAccounts accounts={moduleData || []} />
             ) : activeModule === 'item_master' ? (
-              <ItemMaster items={moduleData || []} />
+              <ItemMaster items={moduleData || []} tenantId={TENANT_ID} />
             ) : activeModule === 'entity_directory' ? (
               <EntityDirectory entities={moduleData || []} tenantId={TENANT_ID} />
             ) : activeModule === 'bills' ? (

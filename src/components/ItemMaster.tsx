@@ -1,32 +1,30 @@
 "use client";
 
 import React, { useState, useMemo, useRef } from 'react';
-import { Package, Plus, Save, Loader2, Box, Search, Filter, Layers, Wrench, Settings, History, X, Upload } from 'lucide-react';
+import { Package, Plus, Save, Loader2, Box, Search, Filter, Layers, Wrench, Settings, History, X, Upload, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { createItem, getItemStockHistory, bulkImportItems } from '@/actions/items';
 
-export default function ItemMaster({ items }: { items: any[] }) {
+export default function ItemMaster({ items, tenantId }: { items: any[], tenantId: string }) {
     const [loading, setLoading] = useState(false);
     const [showForm, setShowForm] = useState(false);
+    const [notification, setNotification] = useState<{ type: 'error' | 'success', msg: string } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeTab, setActiveTab] = useState('RAW_MATERIAL'); // ADD THIS BACK
+    const [activeTab, setActiveTab] = useState('RAW_MATERIAL');
 
-    // NEW: Phase 32 History State
+    // History State
     const [historyItem, setHistoryItem] = useState<any | null>(null);
     const [historyData, setHistoryData] = useState<any[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
 
-    // Core ERP Data Structure
     const [formData, setFormData] = useState({
-        sku: '',
-        name: '',
-        category: 'RAW_MATERIAL',
-        uom: 'Nos',
-        minOrderQty: 0,
-        unitPrice: 0
+        sku: '', name: '', category: 'RAW_MATERIAL', uom: 'Nos', minOrderQty: 0, unitPrice: 0
     });
 
-    const tenantId = '11111111-1111-1111-1111-111111111111';
+    const notify = (type: 'error' | 'success', msg: string) => {
+        setNotification({ type, msg });
+        setTimeout(() => setNotification(null), 5000);
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -35,13 +33,62 @@ export default function ItemMaster({ items }: { items: any[] }) {
         if (response.success) {
             setShowForm(false);
             setFormData({ sku: '', name: '', category: activeTab, uom: 'Nos', minOrderQty: 0, unitPrice: 0 });
+            notify('success', 'Item successfully created.');
+            window.location.reload();
         } else {
-            alert("Error: " + response.error);
+            notify('error', response.error);
         }
         setLoading(false);
     };
 
-    // Client-side filtering for blazing fast UX
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setLoading(true);
+        try {
+            const text = await file.text();
+
+            // Regex to handle commas inside quotes
+            const parseCSVRow = (str: string) => {
+                const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
+                return str.split(regex).map(s => s.trim().replace(/^"|"$/g, ''));
+            };
+
+            const rows = text.split('\n').filter(r => r.trim() !== '');
+            const parsedItems = rows.slice(1).map(parseCSVRow).filter(r => r.length >= 2 && r[0]).map(r => ({
+                sku: r[0],
+                name: r[1],
+                category: r[2] || 'RAW_MATERIAL',
+                uom: r[3] || 'Nos',
+                minOrderQty: Number(r[4]) || 0,
+                unitPrice: Number(r[5]) || 0
+            }));
+
+            if (parsedItems.length === 0) throw new Error("No valid items found.");
+
+            const res = await bulkImportItems(tenantId, parsedItems);
+            if (res.success) {
+                notify('success', `Imported ${res.count} records successfully.`);
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                notify('error', res.error);
+            }
+        } catch (error: any) {
+            notify('error', "CSV Parse Error: " + error.message);
+        }
+        setLoading(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const openHistory = async (item: any) => {
+        setHistoryItem(item);
+        setLoadingHistory(true);
+        const res = await getItemStockHistory(tenantId, item.id);
+        if (res.success) setHistoryData(res.data);
+        setLoadingHistory(false);
+    };
+
     const filteredItems = useMemo(() => {
         return items.filter(item => {
             const matchesTab = activeTab === 'ALL' || item.category === activeTab;
@@ -56,55 +103,20 @@ export default function ItemMaster({ items }: { items: any[] }) {
         { id: 'COMPONENT', label: 'Components', icon: Settings },
         { id: 'FINISHED_GOOD', label: 'Finished Goods', icon: Box },
         { id: 'SERVICE', label: 'Services', icon: Wrench },
+        { id: 'ALL', label: 'All Items', icon: Package }
     ];
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        setLoading(true);
-        try {
-            const text = await file.text();
-            // Basic CSV parser: splits by newline, then comma (ignoring quotes for simplicity)
-            const rows = text.split('\n').map(row => row.split(',').map(cell => cell.trim().replace(/^"|"$/g, '')));
-
-            // Expected Header: SKU, Name, Category, UOM, MinQty, UnitPrice
-            const parsedItems = rows.slice(1).filter(r => r.length >= 2 && r[0]).map(r => ({
-                sku: r[0],
-                name: r[1],
-                category: r[2] || 'RAW_MATERIAL',
-                uom: r[3] || 'Nos',
-                minOrderQty: Number(r[4]) || 0,
-                unitPrice: Number(r[5]) || 0
-            }));
-
-            if (parsedItems.length === 0) throw new Error("No valid items found.");
-
-            const res = await bulkImportItems(tenantId, parsedItems);
-            if (res.success) {
-                alert(`Success: Imported ${res.count} records.`);
-                window.location.reload();
-            } else {
-                alert("Import failed: " + res.error);
-            }
-        } catch (error: any) {
-            alert("Error parsing CSV: " + error.message);
-        }
-        setLoading(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-    };
-
-    const openHistory = async (item: any) => {
-        setHistoryItem(item);
-        setLoadingHistory(true);
-        const res = await getItemStockHistory(tenantId, item.id);
-        if (res.success) setHistoryData(res.data);
-        setLoadingHistory(false);
-    };
-
     return (
-        <div className="space-y-6">
-            {/* Enterprise Header */}
+        <div className="space-y-6 relative">
+            {/* Toast Notifications */}
+            {notification && (
+                <div className={`fixed top-4 right-4 z-[100] px-6 py-3 rounded-lg shadow-xl flex items-center space-x-3 text-sm font-bold uppercase tracking-wider animate-in slide-in-from-right-8 ${notification.type === 'error' ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'}`}>
+                    {notification.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
+                    <span>{notification.msg}</span>
+                </div>
+            )}
+
+            {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between bg-slate-900 text-white p-6 rounded-xl shadow-lg gap-4">
                 <div className="flex items-center space-x-3">
                     <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400">
@@ -116,27 +128,11 @@ export default function ItemMaster({ items }: { items: any[] }) {
                     </div>
                 </div>
                 <div className="flex items-center space-x-3">
-                    <input
-                        type="file"
-                        accept=".csv"
-                        ref={fileInputRef}
-                        onChange={handleFileUpload}
-                        className="hidden"
-                    />
-                    <button
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={loading}
-                        className="flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-white px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all shadow-md"
-                    >
+                    <input type="file" accept=".csv" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+                    <button onClick={() => fileInputRef.current?.click()} disabled={loading} className="flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-white px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all shadow-md">
                         {loading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />} <span>Import CSV</span>
                     </button>
-                    <button
-                        onClick={() => {
-                            setFormData(prev => ({ ...prev, category: activeTab === 'ALL' ? 'RAW_MATERIAL' : activeTab }));
-                            setShowForm(!showForm);
-                        }}
-                        className="flex items-center justify-center space-x-2 bg-indigo-500 hover:bg-indigo-600 text-white px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all shadow-md"
-                    >
+                    <button onClick={() => { setFormData(prev => ({ ...prev, category: activeTab === 'ALL' ? 'RAW_MATERIAL' : activeTab })); setShowForm(!showForm); }} className="flex items-center justify-center space-x-2 bg-indigo-500 hover:bg-indigo-600 text-white px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all shadow-md">
                         <Plus size={16} /> <span>Create Record</span>
                     </button>
                 </div>
@@ -145,17 +141,10 @@ export default function ItemMaster({ items }: { items: any[] }) {
             {/* Creation Form */}
             {showForm && (
                 <div className="bg-white border border-indigo-200 rounded-xl p-8 shadow-sm animate-in slide-in-from-top-4">
-                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-6 border-b pb-2 flex items-center">
-                        <Plus size={18} className="mr-2 text-indigo-500" /> New Catalog Entry
-                    </h3>
                     <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-6 gap-6 items-start">
                         <div className="md:col-span-2">
                             <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Item Category</label>
-                            <select
-                                value={formData.category}
-                                onChange={e => setFormData({ ...formData, category: e.target.value })}
-                                className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:border-indigo-500 outline-none bg-slate-50 font-medium"
-                            >
+                            <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none bg-slate-50 font-medium">
                                 <option value="RAW_MATERIAL">Raw Material</option>
                                 <option value="COMPONENT">Manufactured Component</option>
                                 <option value="FINISHED_GOOD">Finished Good</option>
@@ -164,35 +153,27 @@ export default function ItemMaster({ items }: { items: any[] }) {
                         </div>
                         <div className="md:col-span-1">
                             <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">SKU / Code</label>
-                            <input required type="text" value={formData.sku} onChange={e => setFormData({ ...formData, sku: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:border-indigo-500 outline-none font-mono uppercase" placeholder="RM-101" />
+                            <input required type="text" value={formData.sku} onChange={e => setFormData({ ...formData, sku: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none font-mono uppercase" />
                         </div>
                         <div className="md:col-span-3">
                             <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Item Description</label>
-                            <input required type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:border-indigo-500 outline-none" placeholder="Aluminium Pipe 6000x20x3.2mm" />
+                            <input required type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none" />
                         </div>
-
                         <div className="md:col-span-2">
                             <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Unit of Measure (UOM)</label>
-                            <select value={formData.uom} onChange={e => setFormData({ ...formData, uom: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:border-indigo-500 outline-none bg-white">
-                                <option value="Nos">Numbers (Nos)</option>
-                                <option value="Kg">Kilograms (Kg)</option>
-                                <option value="Mtrs">Meters (Mtrs)</option>
-                                <option value="Ltrs">Liters (Ltrs)</option>
-                                <option value="Hrs">Hours (Hrs)</option>
-                            </select>
+                            <input required type="text" value={formData.uom} onChange={e => setFormData({ ...formData, uom: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none" placeholder="Nos, Kg, Mtrs" />
                         </div>
                         <div className="md:col-span-2">
                             <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Min Order Qty (MOQ)</label>
-                            <input type="number" step="0.01" min="0" value={formData.minOrderQty} onChange={e => setFormData({ ...formData, minOrderQty: Number(e.target.value) })} className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:border-indigo-500 outline-none" />
+                            <input type="number" step="0.01" value={formData.minOrderQty} onChange={e => setFormData({ ...formData, minOrderQty: Number(e.target.value) })} className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none" />
                         </div>
                         <div className="md:col-span-2">
                             <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Standard Cost / Price</label>
-                            <input required type="number" step="0.01" min="0" value={formData.unitPrice} onChange={e => setFormData({ ...formData, unitPrice: Number(e.target.value) })} className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:border-indigo-500 outline-none font-mono" />
+                            <input required type="number" step="0.01" value={formData.unitPrice} onChange={e => setFormData({ ...formData, unitPrice: Number(e.target.value) })} className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none font-mono" />
                         </div>
-
                         <div className="md:col-span-6 flex justify-end space-x-3 pt-4 border-t border-slate-100">
                             <button type="button" onClick={() => setShowForm(false)} className="px-6 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 uppercase tracking-widest">Cancel</button>
-                            <button type="submit" disabled={loading} className="flex items-center space-x-2 bg-slate-900 hover:bg-black text-white px-8 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all shadow-lg">
+                            <button type="submit" disabled={loading} className="flex items-center space-x-2 bg-slate-900 hover:bg-black text-white px-8 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest shadow-lg">
                                 {loading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} <span>Save Record</span>
                             </button>
                         </div>
@@ -202,7 +183,6 @@ export default function ItemMaster({ items }: { items: any[] }) {
 
             {/* Data Grid */}
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm flex flex-col min-h-[500px]">
-                {/* Grid Tools */}
                 <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
                     <div className="flex space-x-1 bg-slate-200/50 p-1 rounded-lg w-full md:w-auto overflow-x-auto">
                         {tabs.map(tab => (
@@ -226,12 +206,11 @@ export default function ItemMaster({ items }: { items: any[] }) {
                             placeholder="Search code or name..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-9 pr-4 py-2 text-xs border border-slate-300 rounded-lg focus:border-indigo-500 outline-none"
+                            className="w-full pl-9 pr-4 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-indigo-500"
                         />
                     </div>
                 </div>
 
-                {/* Grid Table */}
                 <div className="overflow-x-auto flex-1">
                     <table className="w-full text-left text-sm whitespace-nowrap">
                         <thead className="bg-white border-b-2 border-slate-100 text-slate-400 uppercase text-[10px] tracking-widest font-black sticky top-0 z-10">
@@ -241,7 +220,6 @@ export default function ItemMaster({ items }: { items: any[] }) {
                                 <th className="px-6 py-4 text-center">UOM</th>
                                 <th className="px-6 py-4 text-right">Min Qty</th>
                                 <th className="px-6 py-4 text-right">Available Stock</th>
-                                <th className="px-6 py-4 text-right">Unit Price</th>
                                 <th className="px-6 py-4 text-center">Actions</th>
                             </tr>
                         </thead>
@@ -269,9 +247,6 @@ export default function ItemMaster({ items }: { items: any[] }) {
                                         <td className="px-6 py-3 text-right font-mono font-bold text-slate-900">
                                             {Number(item.stock_quantity || 0).toLocaleString()}
                                         </td>
-                                        <td className="px-6 py-3 text-right font-mono text-sm text-slate-600">
-                                            ${Number(item.unit_price).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                                        </td>
                                         <td className="px-6 py-3 text-center">
                                             <button
                                                 onClick={() => openHistory(item)}
@@ -289,7 +264,7 @@ export default function ItemMaster({ items }: { items: any[] }) {
                 </div>
             </div>
 
-            {/* PHASE 32: IMMUTABLE SUBLEDGER MODAL */}
+            {/* History Modal */}
             {historyItem && (
                 <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col animate-in zoom-in-95">
