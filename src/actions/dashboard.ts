@@ -1,13 +1,9 @@
 "use server";
 
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { getDbClient } from '@/lib/supabase';
 
 export async function getFinancialSummary(tenantId: string) {
+    const supabase = getDbClient();
     try {
         // Fetch all posted journal lines with their associated account types
         const { data: lines, error } = await supabase

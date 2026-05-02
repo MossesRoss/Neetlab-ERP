@@ -136,7 +136,7 @@ export default function FinancialDashboard({ metrics }: { metrics: any }) {
                                     fontWeight: 'bold',
                                     textTransform: 'uppercase'
                                 }}
-                                formatter={(value: number) => [formatCurrency(value), 'Amount']}
+                                formatter={(value: any) => [formatCurrency(value), 'Amount']}
                             />
                             <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={60}>
                                 {chartData.map((entry, index) => (

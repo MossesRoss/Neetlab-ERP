@@ -1,14 +1,10 @@
 "use server";
 
-import { createClient } from '@supabase/supabase-js';
+import { getDbClient } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
 
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export async function getPeriods(tenantId: string, year: number) {
+    const supabase = getDbClient();
     try {
         const { data, error } = await supabase
             .from('financial_periods')
@@ -25,6 +21,7 @@ export async function getPeriods(tenantId: string, year: number) {
 }
 
 export async function togglePeriodLock(tenantId: string, month: number, year: number, lockState: boolean) {
+    const supabase = getDbClient();
     try {
         const { error } = await supabase
             .from('financial_periods')

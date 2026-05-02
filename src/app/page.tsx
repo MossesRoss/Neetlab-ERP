@@ -16,6 +16,7 @@ import BillList from "@/components/BillList";
 import InvoiceList from "@/components/InvoiceList";
 import PrintableInvoice from "@/components/PrintableInvoice";
 import UserManagement from "@/components/UserManagement";
+import PeriodManagement from "@/components/PeriodManagement"; // NEW IMPORT
 import { getPurchaseOrders } from "@/actions/p2p";
 import { getSalesOrders } from "@/actions/o2c";
 import { getAccounts, getJournalEntries } from "@/actions/gl";
@@ -84,6 +85,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
   } else if (activeModule === 'invoices') {
     const response = await getInvoices(TENANT_ID);
     moduleData = response.data || [];
+  } else if (activeModule === 'period_management' && USER_ROLE === 'ADMIN') {
+    moduleData = [];
   } else if (activeModule === 'user_management' && USER_ROLE === 'ADMIN') {
     const response = await getUsers(TENANT_ID);
     moduleData = response.data || [];
@@ -159,7 +162,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
       label: "Administration",
       allowed: ['ADMIN'],
       items: [
-        { id: 'user_management', icon: Shield, label: 'User Management' }
+        { id: 'user_management', icon: Shield, label: 'User Management' },
+        { id: 'period_management', icon: AlertTriangle, label: 'Period Close' } // NEW MENU ITEM
       ]
     }
   ].filter(group => group.allowed.includes(USER_ROLE));
@@ -273,6 +277,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
               )
             ) : activeModule === 'invoices' ? (
               <InvoiceList invoices={moduleData || []} />
+            ) : activeModule === 'period_management' ? (
+              <PeriodManagement tenantId={TENANT_ID} />
+            ) : activeModule === 'user_management' ? (
+              <UserManagement users={moduleData || []} tenantId={TENANT_ID} />
             ) : activeModule === 'chart_of_accounts' ? (
               <ChartOfAccounts accounts={moduleData || []} />
             ) : activeModule === 'item_master' ? (
@@ -281,8 +289,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
               <EntityDirectory entities={moduleData || []} tenantId={TENANT_ID} />
             ) : activeModule === 'bills' ? (
               <BillList bills={moduleData || []} />
-            ) : activeModule === 'user_management' ? (
-              <UserManagement users={moduleData || []} tenantId={TENANT_ID} />
             ) : activeModule === 'journal_entries' ? (
               action === 'create' ? (
                 <div className="space-y-6">

@@ -1,12 +1,7 @@
 "use server";
 
-import { createClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { getDbClient } from '@/lib/supabase';
 
 /**
  * Parses the SKU from our description format: "[SKU-123] Item Name"
@@ -17,6 +12,8 @@ function extractSku(description: string): string | null {
 }
 
 export async function receivePurchaseOrder(tenantId: string, poId: string) {
+    const supabase = getDbClient();
+
     try {
         const { data: po, error: poError } = await supabase
             .from('transactions')
@@ -72,6 +69,8 @@ export async function receivePurchaseOrder(tenantId: string, poId: string) {
 }
 
 export async function fulfillSalesOrder(tenantId: string, soId: string) {
+    const supabase = getDbClient();
+
     try {
         const { data: so, error: soError } = await supabase
             .from('transactions')
@@ -84,6 +83,7 @@ export async function fulfillSalesOrder(tenantId: string, soId: string) {
         if (so.status === 'FULFILLED' || so.status === 'INVOICED') throw new Error("This Sales Order has already been fulfilled or invoiced.");
 
         const movementsToInsert = [];
+        let totalCostOfGoodsSold = 0;
 
         // 1. Strict Validation: Check all stock levels before allowing ANY deductions
         for (const line of so.transaction_lines) {
@@ -92,7 +92,7 @@ export async function fulfillSalesOrder(tenantId: string, soId: string) {
 
             const { data: item } = await supabase
                 .from('items')
-                .select('id, name, stock_quantity')
+                .select('id, name, stock_quantity, unit_price')
                 .eq('sku', sku)
                 .eq('tenant_id', tenantId)
                 .single();
@@ -113,6 +113,8 @@ export async function fulfillSalesOrder(tenantId: string, soId: string) {
                 quantity_change: -Math.abs(requestedQty), // Negative = Stock Decrease
                 movement_type: 'FULFILLMENT'
             });
+
+            totalCostOfGoodsSold += (Number(item.unit_price) || 0) * requestedQty;
         }
 
         // 2. Insert the immutable ledger records
@@ -121,7 +123,30 @@ export async function fulfillSalesOrder(tenantId: string, soId: string) {
             if (moveError) throw new Error(`Subledger Error: ${moveError.message}`);
         }
 
-        // 3. Update Transaction status
+        // 3. Post Journal Entry for Cost of Goods Sold
+        if (totalCostOfGoodsSold > 0) {
+            const { data: cogsAccount } = await supabase.from('accounts').select('id').eq('name', 'Cost of Goods Sold').single();
+            const { data: inventoryAccount } = await supabase.from('accounts').select('id').eq('name', 'Inventory Asset').single();
+
+            if (!cogsAccount || !inventoryAccount) {
+                throw new Error('COGS or Inventory accounts not found.');
+            }
+
+            const { data: je, error: jeError } = await supabase.from('journal_entries').insert({
+                tenant_id: tenantId,
+                date: new Date().toISOString(),
+                description: `COGS for SO #${so.id.split('-')[0]}`
+            }).select().single();
+
+            if (jeError) throw new Error(`JE Error: ${jeError.message}`);
+
+            await supabase.from('journal_lines').insert([
+                { journal_id: je.id, account_id: cogsAccount.id, debit: totalCostOfGoodsSold, description: `COGS for SO` },
+                { journal_id: je.id, account_id: inventoryAccount.id, credit: totalCostOfGoodsSold, description: `Inventory relief for SO` }
+            ]);
+        }
+
+        // 4. Update Transaction status
         await supabase.from('transactions').update({ status: 'FULFILLED' }).eq('id', soId);
 
         revalidatePath('/');

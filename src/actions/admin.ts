@@ -1,14 +1,10 @@
 "use server";
 
-import { createClient } from '@supabase/supabase-js';
+import { getDbClient } from '@/lib/supabase';
 import { revalidatePath } from 'next/cache';
 
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export async function getUsers(tenantId: string) {
+    const supabase = getDbClient();
     try {
         const { data, error } = await supabase
             .from('users')
@@ -25,6 +21,7 @@ export async function getUsers(tenantId: string) {
 }
 
 export async function createUser(tenantId: string, payload: any) {
+    const supabase = getDbClient();
     try {
         const { data, error } = await supabase
             .from('users')

@@ -60,7 +60,7 @@ export default function SalesOrderForm({ items = [], entities = [] }: { items?: 
 
         if (response.success) {
             setSuccessMsg(`SO Created Successfully! Transaction ID: ${response.transactionId}`);
-            setLines([{ id: crypto.randomUUID(), description: '', quantity: 1, unitPrice: 0 }]);
+            setLines([{ id: crypto.randomUUID(), itemId: '', sku: '', description: '', quantity: 1, unitPrice: 0 }]);
         } else {
             setErrorMsg(response.error || "Failed to create Sales Order");
         }
@@ -137,8 +137,8 @@ export default function SalesOrderForm({ items = [], entities = [] }: { items?: 
                                                 step="0.01"
                                                 min="0"
                                                 value={line.unitPrice}
-                                                disabled
-                                                className="w-full border border-slate-300 rounded-md p-2 text-right font-mono focus:outline-none focus:border-emerald-500 text-sm bg-slate-50 text-slate-500 cursor-not-allowed"
+                                                onChange={(e) => updateLine(line.id, 'unitPrice', e.target.value)}
+                                                className="w-full border border-slate-300 rounded-md p-2 text-right font-mono focus:outline-none focus:border-emerald-500 text-sm"
                                             />
                                         </td>
                                         <td className="p-4 text-right font-mono text-slate-700 font-medium">${(Number(line.quantity) * Number(line.unitPrice)).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>

@@ -1,16 +1,11 @@
 "use server";
 
-import { createClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
-
-// Initialize Supabase with the Service Role key to bypass RLS during early dev.
-// In Phase 2, we will replace this with createServerClient + User JWTs.
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { getDbClient } from '@/lib/supabase';
 
 export async function createPurchaseOrder(formData: any) {
+    const supabase = getDbClient();
+
     try {
         // 1. SECURITY MEASURE: Never trust client calculations. 
         // We recalculate the line totals and final document total on the server.
@@ -79,6 +74,8 @@ export async function createPurchaseOrder(formData: any) {
 // NEW: Fetch Purchase Orders securely
 // ============================================
 export async function getPurchaseOrders(tenantId: string) {
+    const supabase = getDbClient();
+
     try {
         const { data, error } = await supabase
             .from('transactions')

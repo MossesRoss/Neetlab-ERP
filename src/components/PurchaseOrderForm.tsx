@@ -75,7 +75,7 @@ export default function PurchaseOrderForm({ items = [], entities = [] }: { items
 
         if (response.success) {
             setSuccessMsg(`PO Created Successfully! Transaction ID: ${response.transactionId}`);
-            setLines([{ id: crypto.randomUUID(), description: '', quantity: 1, unitPrice: 0 }]);
+            setLines([{ id: crypto.randomUUID(), itemId: '', sku: '', description: '', quantity: 1, unitPrice: 0 }]);
         } else {
             setErrorMsg(response.error || "Failed to create Purchase Order");
         }

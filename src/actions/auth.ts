@@ -2,14 +2,10 @@
 
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { getDbClient } from '@/lib/supabase';
 
 export async function authenticate(formData: FormData) {
+    const supabase = getDbClient();
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
 
