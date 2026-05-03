@@ -1,50 +1,71 @@
 "use server";
 
-import { getDbClient } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
+import { revalidatePath } from 'next/cache';
 
-export async function getFinancialSummary(tenantId: string) {
-    const supabase = getDbClient();
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+export async function getDashboardData(tenantId: string) {
     try {
-        // Fetch all posted journal lines with their associated account types
-        const { data: lines, error } = await supabase
-            .from('journal_lines')
-            .select(`
-        debit,
-        credit,
-        journal_entries!inner(tenant_id),
-        accounts!inner(type, name)
-      `)
-            .eq('journal_entries.tenant_id', tenantId);
+        // 1. Query the ultra-fast Postgres Views
+        const { data: fin } = await supabase.from('vw_financial_metrics').select('*').eq('tenant_id', tenantId).single();
+        const { data: mfg } = await supabase.from('vw_mfg_metrics').select('*').eq('tenant_id', tenantId).single();
+
+        // 2. Identify the user and fetch their custom layout
+        const cookieStore = await cookies();
+        const email = cookieStore.get('user_email')?.value;
+
+        let layout = ['operating_cash', 'gross_margin', 'inventory_value', 'active_jobs', 'open_subcontracts', 'sales_backlog'];
+
+        if (email) {
+            const { data: user } = await supabase.from('users').select('dashboard_layout').eq('email', email).single();
+            if (user && user.dashboard_layout) {
+                layout = user.dashboard_layout;
+            }
+        }
+
+        // 3. Calculate dynamic metrics (Gross Margin %)
+        const revenue = Number(fin?.revenue || 0);
+        const cogs = Number(fin?.cogs || 0);
+        const grossMargin = revenue > 0 ? ((revenue - cogs) / revenue) * 100 : 0;
+
+        const metrics = {
+            operating_cash: Number(fin?.operating_cash || 0),
+            revenue: revenue,
+            gross_margin: grossMargin,
+            inventory_value: Number(mfg?.inventory_value || 0),
+            active_jobs: Number(mfg?.active_jobs || 0),
+            open_subcontracts: Number(mfg?.open_subcontracts || 0),
+            sales_backlog: Number(mfg?.sales_backlog || 0)
+        };
+
+        return { success: true, metrics, layout };
+    } catch (error: any) {
+        console.error("Dashboard Engine Error:", error);
+        return { success: false, error: error.message, metrics: {}, layout: [] };
+    }
+}
+
+export async function saveDashboardLayout(layout: string[]) {
+    try {
+        const cookieStore = await cookies();
+        const email = cookieStore.get('user_email')?.value;
+        if (!email) throw new Error("Unauthorized");
+
+        const { error } = await supabase
+            .from('users')
+            .update({ dashboard_layout: layout })
+            .eq('email', email);
 
         if (error) throw new Error(error.message);
 
-        let metrics = {
-            operatingCash: 0,
-            revenue: 0,
-            expenses: 0,
-            netIncome: 0
-        };
-
-        // Aggregate balances based on standard double-entry accounting rules
-        lines?.forEach((line: any) => {
-            const type = line.accounts.type;
-            const debit = Number(line.debit) || 0;
-            const credit = Number(line.credit) || 0;
-
-            if (type === 'ASSET' && line.accounts.name.includes('Cash')) {
-                metrics.operatingCash += (debit - credit); // Assets increase on Debit
-            } else if (type === 'REVENUE') {
-                metrics.revenue += (credit - debit); // Revenue increases on Credit
-            } else if (type === 'EXPENSE') {
-                metrics.expenses += (debit - credit); // Expenses increase on Debit
-            }
-        });
-
-        metrics.netIncome = metrics.revenue - metrics.expenses;
-
-        return { success: true, data: metrics };
+        revalidatePath('/');
+        return { success: true };
     } catch (error: any) {
-        console.error("Failed to fetch Financial Summary:", error);
-        return { success: false, error: error.message, data: null };
+        return { success: false, error: error.message };
     }
 }
