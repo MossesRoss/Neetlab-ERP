@@ -34,11 +34,9 @@ import { getEntities } from "@/actions/entities";
 import { getBills, getInvoices, getInvoiceDetails } from "@/actions/billing";
 import { getUsers } from "@/actions/admin";
 import {
-  LayoutDashboard, ShoppingCart, FileText, ArrowRightLeft, Landmark, FileCheck,
-  CreditCard, Package, Users, AlertTriangle, Receipt, Shield, Wrench, BarChart2,
-  Truck, ShieldAlert, LogOut, ChevronDown
+  Building2, LayoutDashboard, ShoppingCart,
+  FileText, ArrowRightLeft, Landmark, FileCheck, CreditCard, Package, Users, AlertTriangle, Receipt, Shield, Wrench, BarChart2, Truck, LogOut, ChevronDown
 } from "lucide-react";
-import { canAccess, MODULE_PERMISSIONS } from '@/lib/rbac';
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ module?: string, action?: string, id?: string }> }) {
   const cookieStore = await cookies();
@@ -51,11 +49,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
   }
 
   const TENANT_ID = tenantIdCookie.value;
-  const USER_ROLE = userRoleCookie?.value || 'VIEWER';
+  const USER_ROLE = userRoleCookie?.value || 'ADMIN';
   const USER_EMAIL = userEmailCookie?.value || 'admin@core.com';
 
   const params = await searchParams;
-  const defaultModule = USER_ROLE === 'SALES' ? 'sales_orders' : USER_ROLE === 'WAREHOUSE' ? 'job_cards' : 'dashboard';
+  const defaultModule = USER_ROLE === 'SALES' ? 'sales_orders' : USER_ROLE === 'PROCUREMENT' ? 'purchase_orders' : 'dashboard';
   const activeModule = params.module || defaultModule;
   const action = params.action || 'list';
   const recordId = params.id;
@@ -65,99 +63,88 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
     return <PrintableInvoice invoice={response.data} />;
   }
 
-  const isAuthorized = canAccess(USER_ROLE, activeModule as keyof typeof MODULE_PERMISSIONS);
-
   let accountsList = [];
   let itemsList = [];
   let entitiesList = [];
   let moduleData: any = null;
 
-  if (isAuthorized) {
-    if (activeModule === 'item_master') {
-      const response = await getItems(TENANT_ID);
-      moduleData = response.data || [];
-    } else if (activeModule === 'entity_directory') {
-      const response = await getEntities(TENANT_ID);
-      moduleData = response.data || [];
-    } else if (activeModule === 'bills') {
-      const response = await getBills(TENANT_ID);
-      moduleData = response.data || [];
-    } else if (activeModule === 'stock_reports') {
-      moduleData = [];
-    } else if (activeModule === 'invoices') {
-      const response = await getInvoices(TENANT_ID);
-      moduleData = response.data || [];
-    } else if (activeModule === 'dashboard') {
-      moduleData = [];
-    } else if (activeModule === 'purchase_orders') {
-      if (action === 'create') {
-        const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
-        itemsList = itemRes.data || [];
-        entitiesList = entRes.data || [];
-      } else {
-        const response = await getPurchaseOrders(TENANT_ID);
-        moduleData = response.data || [];
-      }
-    } else if (activeModule === 'grns') {
-      const response = await getGRNs(TENANT_ID);
-      moduleData = response.data || [];
-    } else if (activeModule === 'job_cards') {
-      if (action === 'create') {
-        const response = await getItems(TENANT_ID);
-        itemsList = response.data || [];
-      } else {
-        const response = await getJobCards(TENANT_ID);
-        moduleData = response.data || [];
-      }
-    } else if (activeModule === 'delivery_challans') {
-      if (action === 'create') {
-        const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
-        itemsList = itemRes.data || [];
-        entitiesList = entRes.data || [];
-      } else {
-        const response = await getDeliveryChallans(TENANT_ID);
-        moduleData = response.data || [];
-      }
-    } else if (activeModule === 'sales_orders') {
-      if (action === 'create') {
-        const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
-        itemsList = itemRes.data || [];
-        entitiesList = entRes.data || [];
-      } else {
-        const response = await getSalesOrders(TENANT_ID);
-        moduleData = response.data || [];
-      }
-    } else if (activeModule === 'chart_of_accounts') {
-      const response = await getAccounts(TENANT_ID);
-      moduleData = response.data || [];
-    } else if (activeModule === 'journal_entries') {
-      if (action === 'create') {
-        const accRes = await getAccounts(TENANT_ID);
-        accountsList = accRes.data || [];
-      } else {
-        const response = await getJournalEntries(TENANT_ID);
-        moduleData = response.data || [];
-      }
-    } else if (activeModule === 'user_management') {
-      const response = await getUsers(TENANT_ID);
-      moduleData = response.data || [];
-    }
+  if (activeModule === 'item_master') {
+    const response = await getItems(TENANT_ID);
+    moduleData = response.data || [];
+  } else if (activeModule === 'entity_directory') {
+    const response = await getEntities(TENANT_ID);
+    moduleData = response.data || [];
+  } else if (activeModule === 'bills') {
+    const response = await getBills(TENANT_ID);
+    moduleData = response.data || [];
+  } else if (activeModule === 'stock_reports') {
+    moduleData = [];
+  } else if (activeModule === 'invoices') {
+    const response = await getInvoices(TENANT_ID);
+    moduleData = response.data || [];
+  } else if (activeModule === 'journal_entries' && action === 'create') {
+    const response = await getAccounts(TENANT_ID);
+    accountsList = response.data || [];
+  } else if (activeModule === 'dashboard') {
+    moduleData = [];
+  } else if (activeModule === 'purchase_orders' && action === 'list') {
+    const response = await getPurchaseOrders(TENANT_ID);
+    moduleData = response.data || [];
+  } else if (activeModule === 'purchase_orders' && action === 'create') {
+    const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
+    itemsList = itemRes.data || [];
+    entitiesList = entRes.data || [];
+  } else if (activeModule === 'grns') {
+    const response = await getGRNs(TENANT_ID);
+    moduleData = response.data || [];
+  } else if (activeModule === 'job_cards' && action === 'list') {
+    const response = await getJobCards(TENANT_ID);
+    moduleData = response.data || [];
+  } else if (activeModule === 'job_cards' && action === 'create') {
+    const response = await getItems(TENANT_ID);
+    itemsList = response.data || [];
+  } else if (activeModule === 'delivery_challans' && action === 'list') {
+    const response = await getDeliveryChallans(TENANT_ID);
+    moduleData = response.data || [];
+  } else if (activeModule === 'delivery_challans' && action === 'create') {
+    const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
+    itemsList = itemRes.data || [];
+    entitiesList = entRes.data || [];
+  } else if (activeModule === 'sales_orders' && action === 'list') {
+    const response = await getSalesOrders(TENANT_ID);
+    moduleData = response.data || [];
+  } else if (activeModule === 'sales_orders' && action === 'create') {
+    const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
+    itemsList = itemRes.data || [];
+    entitiesList = entRes.data || [];
+  } else if (activeModule === 'chart_of_accounts') {
+    const response = await getAccounts(TENANT_ID);
+    moduleData = response.data || [];
+  } else if (activeModule === 'journal_entries' && action !== 'create') {
+    const response = await getJournalEntries(TENANT_ID);
+    moduleData = response.data || [];
+  } else if (activeModule === 'user_management') {
+    const response = await getUsers(TENANT_ID);
+    moduleData = response.data || [];
   }
 
   const menuGroups = [
     {
       label: "Enterprise",
+      allowed: ['ADMIN', 'ACCOUNTANT', 'WAREHOUSE', 'PROCUREMENT', 'SALES'],
       items: [{ id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' }]
     },
     {
       label: "Master Data",
+      allowed: ['ADMIN', 'PROCUREMENT', 'SALES', 'WAREHOUSE', 'ACCOUNTANT'],
       items: [
-        { id: 'item_master', icon: Package, label: 'Item Catalog' },
-        { id: 'entity_directory', icon: Users, label: 'Entity Directory' }
-      ]
+        { id: 'item_master', icon: Package, label: 'Item Catalog', roles: ['ADMIN', 'PROCUREMENT', 'WAREHOUSE', 'ACCOUNTANT'] },
+        { id: 'entity_directory', icon: Users, label: 'Entity Directory', roles: ['ADMIN', 'SALES', 'PROCUREMENT', 'ACCOUNTANT'] }
+      ].filter(item => item.roles.includes(USER_ROLE))
     },
     {
       label: "Manufacturing",
+      allowed: ['ADMIN', 'WAREHOUSE'],
       items: [
         { id: 'job_cards', icon: Wrench, label: 'Job Cards' },
         { id: 'delivery_challans', icon: Truck, label: 'Delivery Challans' }
@@ -165,58 +152,56 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
     },
     {
       label: "Procure to Pay (P2P)",
+      allowed: ['ADMIN', 'PROCUREMENT', 'ACCOUNTANT', 'WAREHOUSE'],
       items: [
-        { id: 'purchase_orders', icon: ShoppingCart, label: 'Purchase Orders' },
-        { id: 'grns', icon: Package, label: 'Goods Receipts (GRN)' },
-        { id: 'bills', icon: FileText, label: 'A/P Bills' },
-        { id: 'payments_out', icon: ArrowRightLeft, label: 'Vendor Payments' }
-      ]
+        { id: 'purchase_orders', icon: ShoppingCart, label: 'Purchase Orders', roles: ['ADMIN', 'PROCUREMENT'] },
+        { id: 'grns', icon: Package, label: 'Goods Receipts (GRN)', roles: ['ADMIN', 'PROCUREMENT', 'WAREHOUSE'] },
+        { id: 'bills', icon: FileText, label: 'A/P Bills', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'payments_out', icon: ArrowRightLeft, label: 'Vendor Payments', roles: ['ADMIN', 'ACCOUNTANT'] }
+      ].filter(item => item.roles.includes(USER_ROLE))
     },
     {
       label: "Order to Cash (O2C)",
+      allowed: ['ADMIN', 'SALES', 'ACCOUNTANT'],
       items: [
-        { id: 'sales_orders', icon: FileCheck, label: 'Sales Orders' },
-        { id: 'invoices', icon: Receipt, label: 'A/R Invoices' },
-        { id: 'payments_in', icon: CreditCard, label: 'Receive Payments' }
-      ]
+        { id: 'sales_orders', icon: FileCheck, label: 'Sales Orders', roles: ['ADMIN', 'SALES', 'ACCOUNTANT'] },
+        { id: 'invoices', icon: Receipt, label: 'A/R Invoices', roles: ['ADMIN', 'ACCOUNTANT'] },
+        { id: 'payments_in', icon: CreditCard, label: 'Receive Payments', roles: ['ADMIN', 'ACCOUNTANT'] }
+      ].filter(item => item.roles.includes(USER_ROLE))
     },
     {
       label: "Financials (GL)",
+      allowed: ['ADMIN', 'ACCOUNTANT'],
       items: [
         { id: 'chart_of_accounts', icon: Landmark, label: 'Chart of Accounts' },
-        { id: 'journal_entries', icon: FileText, label: 'Journal Entries' },
-        { id: 'period_close', icon: AlertTriangle, label: 'Period Close' }
+        { id: 'journal_entries', icon: FileText, label: 'Journal Entries' }
       ]
     },
     {
       label: "Reports",
+      allowed: ['ADMIN', 'PROCUREMENT', 'SALES', 'WAREHOUSE', 'ACCOUNTANT'],
       items: [
         { id: 'stock_reports', icon: BarChart2, label: 'Stock Reports' }
       ]
     },
     {
       label: "Administration",
+      allowed: ['ADMIN'],
       items: [
-        { id: 'user_management', icon: Shield, label: 'User Management' }
+        { id: 'user_management', icon: Shield, label: 'User Management' },
+        { id: 'period_management', icon: AlertTriangle, label: 'Period Close' }
       ]
     }
-  ].map(group => ({
-    ...group,
-    items: group.items.filter(item => canAccess(USER_ROLE, item.id as keyof typeof MODULE_PERMISSIONS))
-  })).filter(group => group.items.length > 0);
+  ].filter(group => group.allowed.includes(USER_ROLE));
+
+  const isAuthorized = menuGroups.some(group => group.items.some(item => item.id === activeModule));
 
   return (
     <div className="h-screen w-full overflow-hidden bg-slate-50 font-sans text-slate-900 flex flex-col">
-      {/* SARGENT FIX: Brand and Top Right Nav */}
       <header className="h-14 border-b border-slate-200 bg-white flex items-center justify-between px-6 sticky top-0 z-30 shadow-sm">
         <div className="flex items-center space-x-2 text-slate-800 font-black tracking-tight text-xl">
-          {/* Logo placeholder. Just drop logo.png in public folder */}
-          <img
-            src="/logo.png"
-            alt="Srini Logo"
-            className="h-6 object-contain"
-          />
-          <span className="uppercase tracking-widest">Srini</span>
+          <img src="/logo.png" alt="Srini" className="h-6 object-contain" />
+          <span className="uppercase tracking-widest">SRINI</span>
         </div>
 
         <div className="flex items-center space-x-4">
@@ -228,7 +213,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
               <ChevronDown size={14} className="text-slate-400" />
             </div>
 
-            {/* Hover Dropdown (NetSuite Style) */}
             <div className="absolute right-0 top-full mt-0 w-56 bg-white border border-slate-200 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 overflow-hidden">
               <div className="p-4 border-b border-slate-100 bg-slate-50">
                 <p className="text-sm font-bold text-slate-800 truncate">{USER_EMAIL}</p>
@@ -248,7 +232,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* SARGENT FIX: Sleek Modern SaaS Sidebar (Scrollbar Hidden & Full Height Fixed) */}
         <aside className="w-64 bg-slate-900 text-slate-300 h-full overflow-y-auto hidden md:block border-r border-slate-800 shadow-inner [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <div className="py-6">
             {menuGroups.map((group, idx) => (
@@ -277,17 +260,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
           </div>
         </aside>
 
-        <main className="flex-1 overflow-y-auto p-8">
-          <div className="max-w-6xl mx-auto">
+        <main className="flex-1 h-full overflow-y-auto p-8">
+          <div className="max-w-6xl mx-auto pb-12">
             {!isAuthorized ? (
-              <div className="flex flex-col items-center justify-center h-[70vh] text-center">
-                <div className="w-24 h-24 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mb-6 shadow-sm border border-rose-200">
-                  <ShieldAlert size={48} />
-                </div>
-                <h2 className="text-3xl font-black text-slate-800 tracking-tight mb-2 uppercase">Access Denied</h2>
-                <p className="text-slate-500 font-medium max-w-md">
-                  Your current security clearance (<span className="font-bold text-slate-700">{USER_ROLE}</span>) does not permit access to the <span className="uppercase font-mono text-slate-700">{activeModule}</span> module.
-                </p>
+              <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-red-200 rounded-xl bg-red-50/50">
+                <AlertTriangle size={48} className="text-red-400 mb-4" />
+                <h2 className="text-lg font-bold text-red-800 capitalize tracking-wide">Access Denied</h2>
+                <p className="text-sm text-red-600 mt-2">Your current role ({USER_ROLE}) is not authorized to view this module.</p>
               </div>
             ) : activeModule === 'dashboard' ? (
               <FinancialDashboard tenantId={TENANT_ID} userRole={USER_ROLE} />
@@ -299,7 +278,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
                     <span>/</span>
                     <span className="text-slate-800">Create New</span>
                   </div>
-                  <PurchaseOrderForm items={itemsList} entities={entitiesList} />
+                  <PurchaseOrderForm items={itemsList} entities={entitiesList} tenantId={TENANT_ID} />
                 </div>
               ) : (
                 <PurchaseOrderList orders={moduleData || []} />
@@ -326,7 +305,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
                     <span>/</span>
                     <span className="text-slate-800">Create New</span>
                   </div>
-                  <SalesOrderForm items={itemsList} entities={entitiesList} />
+                  <SalesOrderForm items={itemsList} entities={entitiesList} tenantId={TENANT_ID} />
                 </div>
               ) : (
                 <SalesOrderList orders={moduleData || []} tenantId={TENANT_ID} />
@@ -335,7 +314,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
               <InvoiceList invoices={moduleData || []} />
             ) : activeModule === 'stock_reports' ? (
               <StockReport tenantId={TENANT_ID} />
-            ) : activeModule === 'period_close' ? (
+            ) : activeModule === 'period_management' ? (
               <PeriodManagement tenantId={TENANT_ID} />
             ) : activeModule === 'user_management' ? (
               <UserManagement users={moduleData || []} tenantId={TENANT_ID} />
@@ -355,7 +334,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
                     <span>/</span>
                     <span className="text-slate-800">Post Entry</span>
                   </div>
-                  <JournalEntryForm accounts={accountsList} />
+                  <JournalEntryForm accounts={accountsList} tenantId={TENANT_ID} />
                 </div>
               ) : (
                 <JournalEntryList entries={moduleData || []} />

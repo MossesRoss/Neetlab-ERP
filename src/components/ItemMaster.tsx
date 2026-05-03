@@ -1,16 +1,27 @@
 "use client";
 
-import React, { useState, useMemo, useRef } from 'react';
-import { Package, Plus, Save, Loader2, Box, Search, Filter, Layers, Wrench, Settings, History, X, Upload, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { createItem, getItemStockHistory, bulkImportItems } from '@/actions/items';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Package, Plus, Save, Loader2, Box, Search, Filter, Layers, Wrench, Settings, History, X, Upload, AlertCircle, CheckCircle2, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { createItem, getItemStockHistory, bulkImportItems, bulkDeleteItems } from '@/actions/items';
 
 export default function ItemMaster({ items, tenantId }: { items: any[], tenantId: string }) {
     const [loading, setLoading] = useState(false);
     const [showForm, setShowForm] = useState(false);
     const [notification, setNotification] = useState<{ type: 'error' | 'success', msg: string } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Pagination & Selection State
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState('RAW_MATERIAL');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [selectedItems, setSelectedItems] = useState<string[]>([]);
+    const itemsPerPage = 50;
+
+    // Reset pagination and selection when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+        setSelectedItems([]);
+    }, [searchQuery, activeTab]);
 
     // History State
     const [historyItem, setHistoryItem] = useState<any | null>(null);
@@ -21,9 +32,9 @@ export default function ItemMaster({ items, tenantId }: { items: any[], tenantId
         sku: '', name: '', category: 'RAW_MATERIAL', uom: 'Nos', minOrderQty: 0, unitPrice: 0
     });
 
+    // SARGENT FIX: Removed setTimeout. Snackbar stays until explicitly closed.
     const notify = (type: 'error' | 'success', msg: string) => {
         setNotification({ type, msg });
-        setTimeout(() => setNotification(null), 5000);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -48,8 +59,6 @@ export default function ItemMaster({ items, tenantId }: { items: any[], tenantId
         setLoading(true);
         try {
             const text = await file.text();
-
-            // Regex to handle commas inside quotes
             const parseCSVRow = (str: string) => {
                 const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
                 return str.split(regex).map(s => s.trim().replace(/^"|"$/g, ''));
@@ -81,6 +90,21 @@ export default function ItemMaster({ items, tenantId }: { items: any[], tenantId
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
+    // SARGENT FIX: Bulk Deletion Engine
+    const handleBulkDelete = async () => {
+        if (!confirm(`WARNING: Are you sure you want to permanently delete ${selectedItems.length} items? This cannot be undone.`)) return;
+        setLoading(true);
+        const res = await bulkDeleteItems(tenantId, selectedItems);
+        if (res.success) {
+            notify('success', `Successfully deleted ${selectedItems.length} items.`);
+            setSelectedItems([]);
+            window.location.reload();
+        } else {
+            notify('error', res.error);
+        }
+        setLoading(false);
+    };
+
     const openHistory = async (item: any) => {
         setHistoryItem(item);
         setLoadingHistory(true);
@@ -98,6 +122,10 @@ export default function ItemMaster({ items, tenantId }: { items: any[], tenantId
         });
     }, [items, activeTab, searchQuery]);
 
+    // SARGENT FIX: Pagination Engine
+    const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+    const paginatedItems = filteredItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
     const tabs = [
         { id: 'RAW_MATERIAL', label: 'Raw Materials', icon: Layers },
         { id: 'COMPONENT', label: 'Components', icon: Settings },
@@ -108,11 +136,16 @@ export default function ItemMaster({ items, tenantId }: { items: any[], tenantId
 
     return (
         <div className="space-y-6 relative">
-            {/* Toast Notifications */}
+            {/* SARGENT FIX: Persistent Toast Notifications */}
             {notification && (
-                <div className={`fixed top-4 right-4 z-[100] px-6 py-3 rounded-lg shadow-xl flex items-center space-x-3 text-sm font-bold uppercase tracking-wider animate-in slide-in-from-right-8 ${notification.type === 'error' ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'}`}>
-                    {notification.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
-                    <span>{notification.msg}</span>
+                <div className={`fixed top-4 right-4 z-[100] px-6 py-4 rounded-xl shadow-2xl flex items-center justify-between min-w-[320px] animate-in slide-in-from-right-8 ${notification.type === 'error' ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'}`}>
+                    <div className="flex items-center space-x-3 text-sm font-bold uppercase tracking-wider">
+                        {notification.type === 'error' ? <AlertCircle size={20} /> : <CheckCircle2 size={20} />}
+                        <span>{notification.msg}</span>
+                    </div>
+                    <button onClick={() => setNotification(null)} className="ml-4 hover:opacity-75 transition-opacity p-1 bg-black/10 rounded-full">
+                        <X size={16} />
+                    </button>
                 </div>
             )}
 
@@ -123,8 +156,7 @@ export default function ItemMaster({ items, tenantId }: { items: any[], tenantId
                         <Package size={24} />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold uppercase tracking-wider">Master Item Catalog</h1>
-                        <p className="text-xs text-slate-400 mt-1 font-mono">Centralized inventory & material definitions.</p>
+                        <h1 className="text-xl font-bold uppercase tracking-wider">Items</h1>
                     </div>
                 </div>
                 <div className="flex items-center space-x-3">
@@ -184,21 +216,31 @@ export default function ItemMaster({ items, tenantId }: { items: any[], tenantId
             {/* Data Grid */}
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm flex flex-col min-h-[500px]">
                 <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
-                    <div className="flex space-x-1 bg-slate-200/50 p-1 rounded-lg w-full md:w-auto overflow-x-auto">
-                        {tabs.map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`flex items-center space-x-2 px-4 py-2 rounded-md text-xs font-bold tracking-wider uppercase transition-all whitespace-nowrap ${activeTab === tab.id
-                                        ? 'bg-white text-indigo-700 shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'
-                                    }`}
-                            >
-                                <tab.icon size={14} />
-                                <span>{tab.label}</span>
+                    {/* SARGENT FIX: Contextual Action Bar for Bulk Deletion */}
+                    {selectedItems.length > 0 ? (
+                        <div className="flex items-center justify-between bg-indigo-50 border border-indigo-200 p-1.5 rounded-lg w-full md:w-auto animate-in fade-in">
+                            <span className="text-sm font-bold text-indigo-700 px-4">{selectedItems.length} items selected</span>
+                            <button onClick={handleBulkDelete} disabled={loading} className="flex items-center space-x-2 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-md text-xs font-bold transition-all shadow-sm">
+                                {loading ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} <span>Delete Selected</span>
                             </button>
-                        ))}
-                    </div>
+                        </div>
+                    ) : (
+                        <div className="flex space-x-1 bg-slate-200/50 p-1 rounded-lg w-full md:w-auto overflow-x-auto">
+                            {tabs.map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`flex items-center space-x-2 px-4 py-2 rounded-md text-xs font-bold tracking-wider uppercase transition-all whitespace-nowrap ${activeTab === tab.id
+                                            ? 'bg-white text-indigo-700 shadow-sm'
+                                            : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'
+                                        }`}
+                                >
+                                    <tab.icon size={14} />
+                                    <span>{tab.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
                     <div className="relative w-full md:w-64">
                         <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
                         <input
@@ -215,6 +257,18 @@ export default function ItemMaster({ items, tenantId }: { items: any[], tenantId
                     <table className="w-full text-left text-sm whitespace-nowrap">
                         <thead className="bg-white border-b-2 border-slate-100 text-slate-400 uppercase text-[10px] tracking-widest font-black sticky top-0 z-10">
                             <tr>
+                                {/* SARGENT FIX: Master Checkbox */}
+                                <th className="px-6 py-4 w-12 text-center">
+                                    <input
+                                        type="checkbox"
+                                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                        checked={paginatedItems.length > 0 && selectedItems.length === paginatedItems.length}
+                                        onChange={(e) => {
+                                            if (e.target.checked) setSelectedItems(paginatedItems.map((i: any) => i.id));
+                                            else setSelectedItems([]);
+                                        }}
+                                    />
+                                </th>
                                 <th className="px-6 py-4">Code / SKU</th>
                                 <th className="px-6 py-4">Item Description</th>
                                 <th className="px-6 py-4 text-center">UOM</th>
@@ -224,16 +278,26 @@ export default function ItemMaster({ items, tenantId }: { items: any[], tenantId
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 text-slate-700">
-                            {filteredItems.length === 0 ? (
+                            {paginatedItems.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-20 text-center text-slate-400">
+                                    <td colSpan={7} className="px-6 py-20 text-center text-slate-400">
                                         <Filter size={48} className="mx-auto mb-4 opacity-20" />
                                         <p className="text-sm font-medium">No records found matching your criteria.</p>
                                     </td>
                                 </tr>
                             ) : (
-                                filteredItems.map((item: any) => (
-                                    <tr key={item.id} className="hover:bg-indigo-50/30 transition-colors group">
+                                paginatedItems.map((item: any) => (
+                                    <tr key={item.id} className={`hover:bg-indigo-50/30 transition-colors group ${selectedItems.includes(item.id) ? 'bg-indigo-50/50' : ''}`}>
+                                        <td className="px-6 py-3 text-center">
+                                            <input
+                                                type="checkbox"
+                                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                                checked={selectedItems.includes(item.id)}
+                                                onChange={() => {
+                                                    setSelectedItems(prev => prev.includes(item.id) ? prev.filter(id => id !== item.id) : [...prev, item.id]);
+                                                }}
+                                            />
+                                        </td>
                                         <td className="px-6 py-3 font-mono text-xs font-bold text-indigo-700">{item.sku}</td>
                                         <td className="px-6 py-3 font-medium text-slate-900 truncate max-w-xs" title={item.name}>{item.name}</td>
                                         <td className="px-6 py-3 text-center">
@@ -262,6 +326,32 @@ export default function ItemMaster({ items, tenantId }: { items: any[], tenantId
                         </tbody>
                     </table>
                 </div>
+
+                {/* SARGENT FIX: Pagination Controls */}
+                {totalPages > 1 && (
+                    <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-sm text-slate-500">
+                        <div className="hidden sm:block">
+                            Showing <span className="font-bold text-slate-700">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-bold text-slate-700">{Math.min(currentPage * itemsPerPage, filteredItems.length)}</span> of <span className="font-bold text-slate-700">{filteredItems.length}</span> entries
+                        </div>
+                        <div className="flex items-center space-x-4">
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="p-1.5 rounded-md hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-transparent transition-colors text-slate-700"
+                            >
+                                <ChevronLeft size={20} />
+                            </button>
+                            <span className="font-bold text-slate-700 text-xs uppercase tracking-widest">Page {currentPage} of {totalPages}</span>
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="p-1.5 rounded-md hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-transparent transition-colors text-slate-700"
+                            >
+                                <ChevronRight size={20} />
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* History Modal */}

@@ -11,10 +11,18 @@ export async function getJournalEntries(tenantId: string) {
             .from('journal_entries')
             .select('*, journal_lines(*, accounts(*))')
             .eq('tenant_id', tenantId)
-            .order('date', { ascending: false });
+            // SARGENT FIX: Schema uses entry_date, not date
+            .order('entry_date', { ascending: false });
 
         if (error) throw new Error(error.message);
-        return { success: true, data };
+
+        // Map total for frontend
+        const formattedData = data.map(je => ({
+            ...je,
+            total: je.journal_lines.reduce((sum: number, line: any) => sum + Number(line.debit || 0), 0)
+        }));
+
+        return { success: true, data: formattedData };
     } catch (error: any) {
         console.error("Failed to fetch journal entries:", error);
         return { success: false, error: error.message, data: [] };
@@ -43,23 +51,26 @@ export async function createJournalEntry(formData: any) {
     const supabase = getDbClient();
 
     try {
+        // Enforce strict date on the server
+        const entryDate = new Date().toISOString().split('T')[0];
+
         const { data: je, error: jeError } = await supabase.from('journal_entries').insert({
             tenant_id: formData.tenantId,
-            date: formData.date,
-            description: formData.description
+            entry_date: entryDate, // SARGENT FIX: Schema uses entry_date
+            memo: formData.description || formData.memo || "Manual Entry" // Fallback support
         }).select().single();
 
         if (jeError) throw new Error(`JE Error: ${jeError.message}`);
 
         const linesToInsert = formData.lines.map((line: any) => ({
-            journal_id: je.id,
+            journal_entry_id: je.id, // SARGENT FIX: Schema uses journal_entry_id
             account_id: line.accountId,
-            debit: line.debit,
-            credit: line.credit,
-            description: line.description
+            debit: Number(line.debit) || 0,
+            credit: Number(line.credit) || 0
         }));
 
-        await supabase.from('journal_lines').insert(linesToInsert);
+        const { error: linesError } = await supabase.from('journal_lines').insert(linesToInsert);
+        if (linesError) throw new Error(`Lines Error: ${linesError.message}`);
 
         revalidatePath('/');
         return { success: true, journalEntryId: je.id };

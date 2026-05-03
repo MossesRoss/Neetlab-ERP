@@ -117,3 +117,23 @@ export async function getItemStockHistory(tenantId: string, itemId: string) {
         return { success: false, error: error.message, data: [] };
     }
 }
+
+// ============================================
+// NEW: BULK DELETE
+// ============================================
+export async function bulkDeleteItems(tenantId: string, itemIds: string[]) {
+    try {
+        const { error } = await supabase
+            .from('items')
+            .delete()
+            .eq('tenant_id', tenantId)
+            .in('id', itemIds);
+
+        if (error) throw new Error(error.message);
+
+        revalidatePath('/');
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
