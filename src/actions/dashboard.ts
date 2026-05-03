@@ -15,6 +15,9 @@ export async function getDashboardData(tenantId: string) {
         const { data: fin } = await supabase.from('vw_financial_metrics').select('*').eq('tenant_id', tenantId).single();
         const { data: mfg } = await supabase.from('vw_mfg_metrics').select('*').eq('tenant_id', tenantId).single();
 
+        // NEW: Fetch the 6-month time-series trend array
+        const { data: trends } = await supabase.from('vw_dashboard_trends_6mo').select('*').eq('tenant_id', tenantId).order('month_start', { ascending: true });
+
         // 2. Identify the user and fetch their custom layout
         const cookieStore = await cookies();
         const email = cookieStore.get('user_email')?.value;
@@ -40,7 +43,8 @@ export async function getDashboardData(tenantId: string) {
             inventory_value: Number(mfg?.inventory_value || 0),
             active_jobs: Number(mfg?.active_jobs || 0),
             open_subcontracts: Number(mfg?.open_subcontracts || 0),
-            sales_backlog: Number(mfg?.sales_backlog || 0)
+            sales_backlog: Number(mfg?.sales_backlog || 0),
+            trends: trends || [] // Pass the trend array to the UI
         };
 
         return { success: true, metrics, layout };

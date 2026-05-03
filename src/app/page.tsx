@@ -29,15 +29,17 @@ import { getJobCards } from "@/actions/production";
 import { getDeliveryChallans } from "@/actions/subcontracting";
 import { getSalesOrders } from "@/actions/o2c";
 import { getAccounts, getJournalEntries } from "@/actions/gl";
-// REMOVE the getFinancialSummary import entirely from around line 32
 import { getItems } from "@/actions/items";
 import { getEntities } from "@/actions/entities";
 import { getBills, getInvoices, getInvoiceDetails } from "@/actions/billing";
 import { getUsers } from "@/actions/admin";
 import {
   Building2, LayoutDashboard, ShoppingCart,
-  FileText, ArrowRightLeft, Landmark, FileCheck, CreditCard, Package, Users, AlertTriangle, Receipt, Shield, Wrench, BarChart2, Truck
+  FileText, ArrowRightLeft, Landmark, FileCheck, CreditCard, Package, Users, AlertTriangle, Receipt, Shield, Wrench, BarChart2, Truck, ShieldAlert
 } from "lucide-react";
+
+// NEW: Import the Enterprise RBAC Security Engine
+import { canAccess, MODULE_PERMISSIONS } from '@/lib/rbac';
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ module?: string, action?: string, id?: string }> }) {
   // 1. SECURE TENANT INTERCEPTION
@@ -53,115 +55,124 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
 
   // 2. DYNAMIC TENANT & ROLE ASSIGNMENT
   const TENANT_ID = tenantIdCookie.value;
-  const USER_ROLE = userRoleCookie?.value || 'ADMIN';
+  const USER_ROLE = userRoleCookie?.value || 'VIEWER';
   const USER_EMAIL = userEmailCookie?.value || 'admin@core.com';
 
   const params = await searchParams;
   // Default to the most relevant dashboard based on role
-  const defaultModule = USER_ROLE === 'SALES' ? 'sales_orders' : USER_ROLE === 'PROCUREMENT' ? 'purchase_orders' : 'dashboard';
+  const defaultModule = USER_ROLE === 'SALES' ? 'sales_orders' : USER_ROLE === 'WAREHOUSE' ? 'job_cards' : 'dashboard';
   const activeModule = params.module || defaultModule;
   const action = params.action || 'list';
   const recordId = params.id; // Extract the requested document ID
 
   // ==============================================================
   // PHASE 23: ISOLATED PRINT ROUTE INTERCEPTION
-  // If the user is requesting a PDF, return the document immediately, 
-  // skipping the entire application shell below!
   // ==============================================================
   if (action === 'print' && activeModule === 'invoices' && recordId) {
     const response = await getInvoiceDetails(TENANT_ID, recordId);
     return <PrintableInvoice invoice={response.data} />;
   }
 
+  // ============================================================================
+  // THE STRICT LENS: UI Security Gateway
+  // ============================================================================
+  const isAuthorized = canAccess(USER_ROLE, activeModule as keyof typeof MODULE_PERMISSIONS);
+
   let accountsList = [];
   let itemsList = [];
   let entitiesList = [];
   let moduleData: any = null;
 
-  // Fetch data on the server based on the active module
-  if (activeModule === 'dashboard') {
-    const response = await getFinancialSummary(TENANT_ID);
-    moduleData = response.data || null;
-  } else if (activeModule === 'item_master') {
-    const response = await getItems(TENANT_ID);
-    moduleData = response.data || [];
-  } else if (activeModule === 'entity_directory') {
-    const response = await getEntities(TENANT_ID);
-    moduleData = response.data || [];
-  } else if (activeModule === 'bills') {
-    const response = await getBills(TENANT_ID);
-    moduleData = response.data || [];
-  } else if (activeModule === 'stock_reports') {
-    moduleData = [];
-  } else if (activeModule === 'invoices') {
-    const response = await getInvoices(TENANT_ID);
-  } else if (activeModule === 'journal_entries' && action === 'create') {
-    const response = await getAccounts(TENANT_ID);
-    moduleData = response.data || [];
-  } else if (activeModule === 'dashboard') {
-    // REWRITE THIS BLOCK: The dashboard component now fetches its own data
-    moduleData = [];
-  } else if (activeModule === 'purchase_orders' && action === 'list') {
-    const response = await getPurchaseOrders(TENANT_ID);
-    moduleData = response.data || [];
-  } else if (activeModule === 'purchase_orders' && action === 'create') {
-    const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
-    itemsList = itemRes.data || [];
-    entitiesList = entRes.data || [];
-  } else if (activeModule === 'grns') {
-    const response = await getGRNs(TENANT_ID);
-    moduleData = response.data || [];
-  } else if (activeModule === 'job_cards' && action === 'list') {
-    const response = await getJobCards(TENANT_ID);
-    moduleData = response.data || [];
-  } else if (activeModule === 'job_cards' && action === 'create') {
-    const response = await getItems(TENANT_ID);
-    itemsList = response.data || [];
-  } else if (activeModule === 'delivery_challans' && action === 'list') {
-    const response = await getDeliveryChallans(TENANT_ID);
-    moduleData = response.data || [];
-  } else if (activeModule === 'delivery_challans' && action === 'create') {
-    const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
-    itemsList = itemRes.data || [];
-    entitiesList = entRes.data || [];
-  } else if (activeModule === 'sales_orders' && action === 'list') {
-    const response = await getSalesOrders(TENANT_ID);
-    moduleData = response.data || [];
-  } else if (activeModule === 'sales_orders' && action === 'create') {
-    const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
-    itemsList = itemRes.data || [];
-    entitiesList = entRes.data || [];
-  } else if (activeModule === 'chart_of_accounts') {
-    const response = await getAccounts(TENANT_ID);
-    moduleData = response.data || [];
-  } else if (activeModule === 'journal_entries') {
-    if (action === 'create') {
-      const accRes = await getAccounts(TENANT_ID);
-      accountsList = accRes.data || [];
-    } else {
-      const response = await getJournalEntries(TENANT_ID);
+  // ONLY fetch data if the user is authorized for this module
+  if (isAuthorized) {
+    if (activeModule === 'item_master') {
+      const response = await getItems(TENANT_ID);
+      moduleData = response.data || [];
+    } else if (activeModule === 'entity_directory') {
+      const response = await getEntities(TENANT_ID);
+      moduleData = response.data || [];
+    } else if (activeModule === 'bills') {
+      const response = await getBills(TENANT_ID);
+      moduleData = response.data || [];
+    } else if (activeModule === 'stock_reports') {
+      moduleData = [];
+    } else if (activeModule === 'invoices') {
+      const response = await getInvoices(TENANT_ID);
+      moduleData = response.data || [];
+    } else if (activeModule === 'dashboard') {
+      moduleData = [];
+    } else if (activeModule === 'purchase_orders') {
+      if (action === 'create') {
+        const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
+        itemsList = itemRes.data || [];
+        entitiesList = entRes.data || [];
+      } else {
+        const response = await getPurchaseOrders(TENANT_ID);
+        moduleData = response.data || [];
+      }
+    } else if (activeModule === 'grns') {
+      const response = await getGRNs(TENANT_ID);
+      moduleData = response.data || [];
+    } else if (activeModule === 'job_cards') {
+      if (action === 'create') {
+        const response = await getItems(TENANT_ID);
+        itemsList = response.data || [];
+      } else {
+        const response = await getJobCards(TENANT_ID);
+        moduleData = response.data || [];
+      }
+    } else if (activeModule === 'delivery_challans') {
+      if (action === 'create') {
+        const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
+        itemsList = itemRes.data || [];
+        entitiesList = entRes.data || [];
+      } else {
+        const response = await getDeliveryChallans(TENANT_ID);
+        moduleData = response.data || [];
+      }
+    } else if (activeModule === 'sales_orders') {
+      if (action === 'create') {
+        const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
+        itemsList = itemRes.data || [];
+        entitiesList = entRes.data || [];
+      } else {
+        const response = await getSalesOrders(TENANT_ID);
+        moduleData = response.data || [];
+      }
+    } else if (activeModule === 'chart_of_accounts') {
+      const response = await getAccounts(TENANT_ID);
+      moduleData = response.data || [];
+    } else if (activeModule === 'journal_entries') {
+      if (action === 'create') {
+        const accRes = await getAccounts(TENANT_ID);
+        accountsList = accRes.data || [];
+      } else {
+        const response = await getJournalEntries(TENANT_ID);
+        moduleData = response.data || [];
+      }
+    } else if (activeModule === 'user_management') {
+      const response = await getUsers(TENANT_ID);
       moduleData = response.data || [];
     }
   }
 
-  // 3. STRICT ROLE-BASED MENU FILTERING
+  // 3. STRICT ROLE-BASED MENU FILTERING (Powered by RBAC Engine)
   const menuGroups = [
     {
       label: "Enterprise",
-      allowed: ['ADMIN'],
-      items: [{ id: 'dashboard', icon: LayoutDashboard, label: 'Financial Dashboard' }]
+      items: [
+        { id: 'dashboard', icon: LayoutDashboard, label: 'Financial Dashboard' }
+      ]
     },
     {
       label: "Master Data",
-      allowed: ['ADMIN', 'PROCUREMENT', 'SALES'],
       items: [
-        { id: 'item_master', icon: Package, label: 'Item Catalog', roles: ['ADMIN', 'PROCUREMENT'] },
-        { id: 'entity_directory', icon: Users, label: 'Entity Directory', roles: ['ADMIN', 'SALES'] }
-      ].filter(item => item.roles.includes(USER_ROLE))
+        { id: 'item_master', icon: Package, label: 'Item Catalog' },
+        { id: 'entity_directory', icon: Users, label: 'Entity Directory' }
+      ]
     },
     {
       label: "Manufacturing",
-      allowed: ['ADMIN', 'PROCUREMENT'],
       items: [
         { id: 'job_cards', icon: Wrench, label: 'Job Cards' },
         { id: 'delivery_challans', icon: Truck, label: 'Delivery Challans' }
@@ -169,7 +180,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
     },
     {
       label: "Procure to Pay (P2P)",
-      allowed: ['ADMIN', 'PROCUREMENT'],
       items: [
         { id: 'purchase_orders', icon: ShoppingCart, label: 'Purchase Orders' },
         { id: 'grns', icon: Package, label: 'Goods Receipts (GRN)' },
@@ -179,40 +189,37 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
     },
     {
       label: "Order to Cash (O2C)",
-      allowed: ['ADMIN', 'SALES'],
       items: [
         { id: 'sales_orders', icon: FileCheck, label: 'Sales Orders' },
         { id: 'invoices', icon: Receipt, label: 'A/R Invoices' },
-        { id: 'payments_in', icon: CreditCard, label: 'Receive Payments' }
+        { id: 'receive_payments', icon: CreditCard, label: 'Receive Payments' }
       ]
     },
     {
       label: "Financials (GL)",
-      allowed: ['ADMIN'],
       items: [
         { id: 'chart_of_accounts', icon: Landmark, label: 'Chart of Accounts' },
-        { id: 'journal_entries', icon: FileText, label: 'Journal Entries' }
+        { id: 'journal_entries', icon: FileText, label: 'Journal Entries' },
+        { id: 'period_close', icon: AlertTriangle, label: 'Period Close' }
       ]
     },
     {
       label: "Reports",
-      allowed: ['ADMIN', 'PROCUREMENT', 'SALES'],
       items: [
         { id: 'stock_reports', icon: BarChart2, label: 'Stock Reports' }
       ]
     },
     {
       label: "Administration",
-      allowed: ['ADMIN'],
       items: [
-        { id: 'user_management', icon: Shield, label: 'User Management' },
-        { id: 'period_management', icon: AlertTriangle, label: 'Period Close' } // NEW MENU ITEM
+        { id: 'user_management', icon: Shield, label: 'User Management' }
       ]
     }
-  ].filter(group => group.allowed.includes(USER_ROLE));
-
-  // Security Guard: Prevent URL tampering from accessing unauthorized modules
-  const isAuthorized = menuGroups.some(group => group.items.some(item => item.id === activeModule));
+  ].map(group => ({
+    ...group,
+    // Strictly mask out items the user is not allowed to see based on the Matrix
+    items: group.items.filter(item => canAccess(USER_ROLE, item.id as keyof typeof MODULE_PERMISSIONS))
+  })).filter(group => group.items.length > 0); // Hide empty groups
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col">
@@ -228,10 +235,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
           <div className="text-right">
             <p className="text-xs font-bold text-slate-800 capitalize">{USER_EMAIL.split('@')[0]}</p>
             <div className="flex items-center justify-end space-x-2">
-              {/* Dynamic Role Badge */}
               <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-widest ${USER_ROLE === 'ADMIN' ? 'bg-indigo-100 text-indigo-700' :
-                USER_ROLE === 'SALES' ? 'bg-emerald-100 text-emerald-700' :
-                  'bg-sky-100 text-sky-700'
+                  USER_ROLE === 'ACCOUNTANT' ? 'bg-purple-100 text-purple-700' :
+                    USER_ROLE === 'SALES' ? 'bg-emerald-100 text-emerald-700' :
+                      'bg-sky-100 text-sky-700'
                 }`}>
                 {USER_ROLE}
               </span>
@@ -285,13 +292,18 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
           <div className="max-w-6xl mx-auto">
 
             {!isAuthorized ? (
-              <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-red-200 rounded-xl bg-red-50/50">
-                <AlertTriangle size={48} className="text-red-400 mb-4" />
-                <h2 className="text-lg font-bold text-red-800 capitalize tracking-wide">Access Denied</h2>
-                <p className="text-sm text-red-600 mt-2">Your current role ({USER_ROLE}) is not authorized to view this module.</p>
+              // THE STRICT LENS: Access Denied Screen
+              <div className="flex flex-col items-center justify-center h-[70vh] text-center">
+                <div className="w-24 h-24 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mb-6 shadow-sm border border-rose-200">
+                  <ShieldAlert size={48} />
+                </div>
+                <h2 className="text-3xl font-black text-slate-800 tracking-tight mb-2 uppercase">Access Denied</h2>
+                <p className="text-slate-500 font-medium max-w-md">
+                  Your current security clearance (<span className="font-bold text-slate-700">{USER_ROLE}</span>) does not permit access to the <span className="uppercase font-mono text-slate-700">{activeModule}</span> module.
+                </p>
               </div>
             ) : activeModule === 'dashboard' ? (
-              <FinancialDashboard metrics={moduleData} />
+              <FinancialDashboard tenantId={TENANT_ID} userRole={USER_ROLE} />
             ) : activeModule === 'purchase_orders' ? (
               action === 'create' ? (
                 <div className="space-y-6">
@@ -330,13 +342,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
                   <SalesOrderForm items={itemsList} entities={entitiesList} />
                 </div>
               ) : (
-                <SalesOrderList orders={moduleData || []} tenantId={TENANT_ID} /> // ADDED TENANT ID
+                <SalesOrderList orders={moduleData || []} tenantId={TENANT_ID} />
               )
             ) : activeModule === 'invoices' ? (
               <InvoiceList invoices={moduleData || []} />
             ) : activeModule === 'stock_reports' ? (
               <StockReport tenantId={TENANT_ID} />
-            ) : activeModule === 'period_management' ? (
+            ) : activeModule === 'period_close' ? (
               <PeriodManagement tenantId={TENANT_ID} />
             ) : activeModule === 'user_management' ? (
               <UserManagement users={moduleData || []} tenantId={TENANT_ID} />

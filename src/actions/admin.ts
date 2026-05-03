@@ -1,10 +1,14 @@
 "use server";
 
-import { getDbClient } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
 
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
 export async function getUsers(tenantId: string) {
-    const supabase = getDbClient();
     try {
         const { data, error } = await supabase
             .from('users')
@@ -15,31 +19,35 @@ export async function getUsers(tenantId: string) {
         if (error) throw new Error(error.message);
         return { success: true, data };
     } catch (error: any) {
-        console.error("Failed to fetch Users:", error);
         return { success: false, error: error.message, data: [] };
     }
 }
 
-export async function createUser(tenantId: string, payload: any) {
-    const supabase = getDbClient();
+export async function provisionUser(tenantId: string, payload: any) {
     try {
+        // Enforce basic enterprise password length
+        if (payload.password.length < 8) throw new Error("Password must be at least 8 characters.");
+
         const { data, error } = await supabase
             .from('users')
             .insert({
                 tenant_id: tenantId,
                 email: payload.email,
-                password: payload.password, // In Phase 21+, we would handle Auth properly. 
+                password_hash: payload.password, // In a future phase, integrate bcrypt here
                 role: payload.role
             })
             .select()
             .single();
 
-        if (error) throw new Error(error.message);
+        if (error) {
+            // Friendly error for unique constraint violation
+            if (error.code === '23505') throw new Error("A user with this email already exists.");
+            throw new Error(error.message);
+        }
 
         revalidatePath('/');
-        return { success: true, user: data };
+        return { success: true };
     } catch (error: any) {
-        console.error("Failed to create User:", error);
         return { success: false, error: error.message };
     }
 }

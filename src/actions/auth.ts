@@ -3,6 +3,7 @@
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { getDbClient } from '@/lib/supabase';
+import { canAccess, MODULE_PERMISSIONS } from '@/lib/rbac';
 
 export async function authenticate(formData: FormData) {
     const supabase = getDbClient();
@@ -56,4 +57,18 @@ export async function logout() {
     cookieStore.delete('user_role');
     cookieStore.delete('user_email');
     revalidatePath('/');
+}
+
+// ============================================================================
+// THE STRICT LENS: Server-Side Access Verification
+// ============================================================================
+export async function verifyAccess(moduleId: keyof typeof MODULE_PERMISSIONS) {
+    const cookieStore = await cookies();
+    const role = cookieStore.get('user_role')?.value;
+
+    if (!role || !canAccess(role, moduleId)) {
+        throw new Error(`SECURITY ALERT: Unauthorized attempt to access ${moduleId}. Incident logged.`);
+    }
+
+    return role;
 }
