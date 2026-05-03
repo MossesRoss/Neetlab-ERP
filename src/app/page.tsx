@@ -29,7 +29,7 @@ import { getJobCards } from "@/actions/production";
 import { getDeliveryChallans } from "@/actions/subcontracting";
 import { getSalesOrders } from "@/actions/o2c";
 import { getAccounts, getJournalEntries } from "@/actions/gl";
-import { getFinancialSummary } from "@/actions/dashboard";
+// REMOVE the getFinancialSummary import entirely from around line 32
 import { getItems } from "@/actions/items";
 import { getEntities } from "@/actions/entities";
 import { getBills, getInvoices, getInvoiceDetails } from "@/actions/billing";
@@ -95,12 +95,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
     moduleData = [];
   } else if (activeModule === 'invoices') {
     const response = await getInvoices(TENANT_ID);
+  } else if (activeModule === 'journal_entries' && action === 'create') {
+    const response = await getAccounts(TENANT_ID);
     moduleData = response.data || [];
-  } else if (activeModule === 'period_management' && USER_ROLE === 'ADMIN') {
+  } else if (activeModule === 'dashboard') {
+    // REWRITE THIS BLOCK: The dashboard component now fetches its own data
     moduleData = [];
-  } else if (activeModule === 'user_management' && USER_ROLE === 'ADMIN') {
-    const response = await getUsers(TENANT_ID);
-    moduleData = response.data || [];
   } else if (activeModule === 'purchase_orders' && action === 'list') {
     const response = await getPurchaseOrders(TENANT_ID);
     moduleData = response.data || [];
