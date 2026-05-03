@@ -16,10 +16,10 @@ export default function SalesOrderForm({ items = [], entities = [] }: { items?: 
     const customers = entities.filter(e => e.type === 'CUSTOMER');
 
     const [lines, setLines] = useState([
-        { id: '1', itemId: '', sku: '', description: '', quantity: 1, unitPrice: 0 }
+        { id: '1', sku: '', description: '', quantity: 1, unitPrice: 0 }
     ]);
 
-    const addLine = () => setLines([...lines, { id: crypto.randomUUID(), itemId: '', sku: '', description: '', quantity: 1, unitPrice: 0 }]);
+    const addLine = () => setLines([...lines, { id: crypto.randomUUID(), sku: '', description: '', quantity: 1, unitPrice: 0 }]);
     const updateLine = (id: string, field: string, value: string | number) => setLines(lines.map(line => line.id === id ? { ...line, [field]: value } : line));
     const removeLine = (id: string) => { if (lines.length > 1) setLines(lines.filter(line => line.id !== id)); };
 
@@ -29,14 +29,12 @@ export default function SalesOrderForm({ items = [], entities = [] }: { items?: 
             setLines(lines.map(line =>
                 line.id === id ? {
                     ...line,
-                    itemId: item.id,
                     sku: selectedSku,
                     description: `[${item.sku}] ${item.name}`,
                     unitPrice: item.unit_price
                 } : line
             ));
         } else {
-            updateLine(id, 'itemId', '');
             updateLine(id, 'sku', '');
             updateLine(id, 'description', '');
             updateLine(id, 'unitPrice', 0);
@@ -60,7 +58,7 @@ export default function SalesOrderForm({ items = [], entities = [] }: { items?: 
 
         if (response.success) {
             setSuccessMsg(`SO Created Successfully! Transaction ID: ${response.transactionId}`);
-            setLines([{ id: crypto.randomUUID(), itemId: '', sku: '', description: '', quantity: 1, unitPrice: 0 }]);
+            setLines([{ id: crypto.randomUUID(), description: '', quantity: 1, unitPrice: 0 }]);
         } else {
             setErrorMsg(response.error || "Failed to create Sales Order");
         }
@@ -85,7 +83,7 @@ export default function SalesOrderForm({ items = [], entities = [] }: { items?: 
                         required
                         value={customerId}
                         onChange={(e) => setCustomerId(e.target.value)}
-                        className="w-full bg-emerald-900 border border-emerald-800 rounded-md p-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+                        className="w-full bg-emerald-900 border border-emerald-800 rounded-md p-2 text-sm text-white focus:outline-none focus:border-emerald-500 appearance-none bg-no-repeat bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2310b981%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[position:right_0.5rem_center] bg-[length:1.2em_1.2em] pr-8"
                     >
                         <option value="">-- Choose Customer --</option>
                         {customers.map(c => (
@@ -119,7 +117,7 @@ export default function SalesOrderForm({ items = [], entities = [] }: { items?: 
                                                 required
                                                 value={line.sku}
                                                 onChange={(e) => handleItemSelect(line.id, e.target.value)}
-                                                className="w-full border border-slate-300 rounded-md p-2 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm bg-white"
+                                                className="w-full border border-slate-300 rounded-md p-2 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm bg-white appearance-none bg-no-repeat bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2394a3b8%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[position:right_0.5rem_center] bg-[length:1.2em_1.2em] pr-8"
                                             >
                                                 <option value="">-- Select Product/Service --</option>
                                                 {items.map(item => (
@@ -137,8 +135,8 @@ export default function SalesOrderForm({ items = [], entities = [] }: { items?: 
                                                 step="0.01"
                                                 min="0"
                                                 value={line.unitPrice}
-                                                onChange={(e) => updateLine(line.id, 'unitPrice', e.target.value)}
-                                                className="w-full border border-slate-300 rounded-md p-2 text-right font-mono focus:outline-none focus:border-emerald-500 text-sm"
+                                                disabled
+                                                className="w-full border border-slate-300 rounded-md p-2 text-right font-mono focus:outline-none focus:border-emerald-500 text-sm bg-slate-50 text-slate-500 cursor-not-allowed"
                                             />
                                         </td>
                                         <td className="p-4 text-right font-mono text-slate-700 font-medium">${(Number(line.quantity) * Number(line.unitPrice)).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>

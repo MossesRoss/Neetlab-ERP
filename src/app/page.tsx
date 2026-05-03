@@ -34,48 +34,37 @@ import { getEntities } from "@/actions/entities";
 import { getBills, getInvoices, getInvoiceDetails } from "@/actions/billing";
 import { getUsers } from "@/actions/admin";
 import {
-  Building2, LayoutDashboard, ShoppingCart,
-  FileText, ArrowRightLeft, Landmark, FileCheck, CreditCard, Package, Users, AlertTriangle, Receipt, Shield, Wrench, BarChart2, Truck, ShieldAlert
+  LayoutDashboard, ShoppingCart, FileText, ArrowRightLeft, Landmark, FileCheck,
+  CreditCard, Package, Users, AlertTriangle, Receipt, Shield, Wrench, BarChart2,
+  Truck, ShieldAlert, LogOut, ChevronDown
 } from "lucide-react";
-
-// NEW: Import the Enterprise RBAC Security Engine
 import { canAccess, MODULE_PERMISSIONS } from '@/lib/rbac';
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ module?: string, action?: string, id?: string }> }) {
-  // 1. SECURE TENANT INTERCEPTION
   const cookieStore = await cookies();
   const tenantIdCookie = cookieStore.get('tenant_id');
   const userRoleCookie = cookieStore.get('user_role');
   const userEmailCookie = cookieStore.get('user_email');
 
-  // If no secure session exists, halt the application and render the login gateway.
   if (!tenantIdCookie?.value) {
     return <LoginForm />;
   }
 
-  // 2. DYNAMIC TENANT & ROLE ASSIGNMENT
   const TENANT_ID = tenantIdCookie.value;
   const USER_ROLE = userRoleCookie?.value || 'VIEWER';
   const USER_EMAIL = userEmailCookie?.value || 'admin@core.com';
 
   const params = await searchParams;
-  // Default to the most relevant dashboard based on role
   const defaultModule = USER_ROLE === 'SALES' ? 'sales_orders' : USER_ROLE === 'WAREHOUSE' ? 'job_cards' : 'dashboard';
   const activeModule = params.module || defaultModule;
   const action = params.action || 'list';
-  const recordId = params.id; // Extract the requested document ID
+  const recordId = params.id;
 
-  // ==============================================================
-  // PHASE 23: ISOLATED PRINT ROUTE INTERCEPTION
-  // ==============================================================
   if (action === 'print' && activeModule === 'invoices' && recordId) {
     const response = await getInvoiceDetails(TENANT_ID, recordId);
     return <PrintableInvoice invoice={response.data} />;
   }
 
-  // ============================================================================
-  // THE STRICT LENS: UI Security Gateway
-  // ============================================================================
   const isAuthorized = canAccess(USER_ROLE, activeModule as keyof typeof MODULE_PERMISSIONS);
 
   let accountsList = [];
@@ -83,7 +72,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
   let entitiesList = [];
   let moduleData: any = null;
 
-  // ONLY fetch data if the user is authorized for this module
   if (isAuthorized) {
     if (activeModule === 'item_master') {
       const response = await getItems(TENANT_ID);
@@ -156,13 +144,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
     }
   }
 
-  // 3. STRICT ROLE-BASED MENU FILTERING (Powered by RBAC Engine)
   const menuGroups = [
     {
       label: "Enterprise",
-      items: [
-        { id: 'dashboard', icon: LayoutDashboard, label: 'Financial Dashboard' }
-      ]
+      items: [{ id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' }]
     },
     {
       label: "Master Data",
@@ -192,7 +177,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
       items: [
         { id: 'sales_orders', icon: FileCheck, label: 'Sales Orders' },
         { id: 'invoices', icon: Receipt, label: 'A/R Invoices' },
-        { id: 'receive_payments', icon: CreditCard, label: 'Receive Payments' }
+        { id: 'payments_in', icon: CreditCard, label: 'Receive Payments' }
       ]
     },
     {
@@ -217,53 +202,58 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
     }
   ].map(group => ({
     ...group,
-    // Strictly mask out items the user is not allowed to see based on the Matrix
     items: group.items.filter(item => canAccess(USER_ROLE, item.id as keyof typeof MODULE_PERMISSIONS))
-  })).filter(group => group.items.length > 0); // Hide empty groups
+  })).filter(group => group.items.length > 0);
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col">
-      {/* Top Navbar */}
+    <div className="h-screen w-full overflow-hidden bg-slate-50 font-sans text-slate-900 flex flex-col">
+      {/* SARGENT FIX: Brand and Top Right Nav */}
       <header className="h-14 border-b border-slate-200 bg-white flex items-center justify-between px-6 sticky top-0 z-30 shadow-sm">
-        <div className="flex items-center space-x-2 text-sky-700 font-black tracking-tighter text-xl">
-          <div className="w-8 h-8 bg-sky-700 rounded-md flex items-center justify-center text-white shadow-inner">
-            <Building2 size={18} />
-          </div>
-          <span className="uppercase">Core ERP</span>
+        <div className="flex items-center space-x-2 text-slate-800 font-black tracking-tight text-xl">
+          {/* Logo placeholder. Just drop logo.png in public folder */}
+          <img
+            src="/logo.png"
+            alt="Srini Logo"
+            className="h-6 object-contain"
+          />
+          <span className="uppercase tracking-widest">Srini</span>
         </div>
+
         <div className="flex items-center space-x-4">
-          <div className="text-right">
-            <p className="text-xs font-bold text-slate-800 capitalize">{USER_EMAIL.split('@')[0]}</p>
-            <div className="flex items-center justify-end space-x-2">
-              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-widest ${USER_ROLE === 'ADMIN' ? 'bg-indigo-100 text-indigo-700' :
-                  USER_ROLE === 'ACCOUNTANT' ? 'bg-purple-100 text-purple-700' :
-                    USER_ROLE === 'SALES' ? 'bg-emerald-100 text-emerald-700' :
-                      'bg-sky-100 text-sky-700'
-                }`}>
-                {USER_ROLE}
-              </span>
-              <form action={logout}>
-                <button type="submit" className="text-[10px] font-bold text-rose-500 uppercase tracking-widest hover:text-rose-600 transition-colors mt-0.5">
-                  Log Out
-                </button>
-              </form>
+          <div className="relative group cursor-pointer py-2">
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-slate-800 text-white font-bold rounded-full flex items-center justify-center text-xs uppercase shadow-sm">
+                {USER_EMAIL.charAt(0)}
+              </div>
+              <ChevronDown size={14} className="text-slate-400" />
             </div>
-          </div>
-          <div className="w-8 h-8 bg-slate-800 text-white font-bold rounded-full flex items-center justify-center text-xs uppercase">
-            {USER_EMAIL.charAt(0)}
+
+            {/* Hover Dropdown (NetSuite Style) */}
+            <div className="absolute right-0 top-full mt-0 w-56 bg-white border border-slate-200 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 overflow-hidden">
+              <div className="p-4 border-b border-slate-100 bg-slate-50">
+                <p className="text-sm font-bold text-slate-800 truncate">{USER_EMAIL}</p>
+                <p className="text-[10px] font-black text-sky-600 uppercase tracking-widest mt-1">{USER_ROLE}</p>
+              </div>
+              <div className="p-2">
+                <form action={logout}>
+                  <button type="submit" className="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors flex items-center space-x-2">
+                    <LogOut size={14} />
+                    <span>Log Out</span>
+                  </button>
+                </form>
+              </div>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Main Layout Grid */}
       <div className="flex flex-1 overflow-hidden">
-
-        {/* Sidebar */}
-        <aside className="w-64 bg-slate-900 text-slate-300 h-[calc(100vh-3.5rem)] overflow-y-auto hidden md:block">
+        {/* SARGENT FIX: Sleek Modern SaaS Sidebar (Scrollbar Hidden & Full Height Fixed) */}
+        <aside className="w-64 bg-slate-900 text-slate-300 h-full overflow-y-auto hidden md:block border-r border-slate-800 shadow-inner [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <div className="py-6">
             {menuGroups.map((group, idx) => (
-              <div key={idx} className="mb-8">
-                <h3 className="px-6 mb-3 text-[10px] font-black uppercase tracking-widest text-slate-500">
+              <div key={idx} className="mb-6">
+                <h3 className="px-6 mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
                   {group.label}
                 </h3>
                 <ul className="space-y-1">
@@ -271,12 +261,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
                     <li key={item.id}>
                       <Link
                         href={`/?module=${item.id}&action=list`}
-                        className={`w-full flex items-center px-6 py-2.5 text-xs font-bold uppercase tracking-wider transition-all ${activeModule === item.id
-                          ? 'bg-sky-600 text-white shadow-[inset_4px_0_0_0_#bae6fd]'
-                          : 'hover:bg-slate-800 hover:text-white'
+                        className={`w-full flex items-center px-6 py-2 text-sm font-medium transition-all ${activeModule === item.id
+                          ? 'bg-sky-900/50 text-sky-400 border-l-4 border-sky-400'
+                          : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border-l-4 border-transparent'
                           }`}
                       >
-                        <item.icon size={16} className={`mr-3 ${activeModule === item.id ? 'text-sky-200' : 'text-slate-500'}`} />
+                        <item.icon size={16} className={`mr-3 ${activeModule === item.id ? 'text-sky-400' : 'text-slate-500'}`} />
                         {item.label}
                       </Link>
                     </li>
@@ -287,12 +277,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
           </div>
         </aside>
 
-        {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto p-8">
           <div className="max-w-6xl mx-auto">
-
             {!isAuthorized ? (
-              // THE STRICT LENS: Access Denied Screen
               <div className="flex flex-col items-center justify-center h-[70vh] text-center">
                 <div className="w-24 h-24 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mb-6 shadow-sm border border-rose-200">
                   <ShieldAlert size={48} />
@@ -373,14 +360,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
               ) : (
                 <JournalEntryList entries={moduleData || []} />
               )
-            ) : (
-              <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-                <LayoutDashboard size={48} className="text-slate-300 mb-4" />
-                <h2 className="text-lg font-bold text-slate-700 capitalize tracking-wide">{activeModule.replace('_', ' ')} Module</h2>
-                <p className="text-sm text-slate-500 mt-2">Architecture pending database mapping.</p>
-              </div>
-            )}
-
+            ) : null}
           </div>
         </main>
       </div>

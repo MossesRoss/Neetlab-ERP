@@ -5,8 +5,6 @@ import { Settings2, Wallet, PieChart as PieChartIcon, Box, Wrench, Truck, FileCh
 import { getDashboardData, saveDashboardLayout } from '@/actions/dashboard';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-// ENTERPRISE WIDGET REGISTRY
-// SECURITY UPGRADE: Every widget now has a strict 'roles' clearance array.
 const WIDGET_REGISTRY: Record<string, any> = {
     'operating_cash': { title: 'Net Cash Flow (6 Mo Trend)', icon: Wallet, type: 'currency', color: 'emerald', size: 'col-span-1 md:col-span-2 lg:col-span-2', chartType: 'line', roles: ['ADMIN', 'ACCOUNTANT'] },
     'gross_margin': { title: 'Revenue vs COGS', icon: PieChartIcon, type: 'percentage', color: 'sky', size: 'col-span-1 md:col-span-1 lg:col-span-1', chartType: 'pie', roles: ['ADMIN', 'ACCOUNTANT'] },
@@ -40,17 +38,9 @@ export default function FinancialDashboard({ tenantId, userRole = 'VIEWER' }: { 
         const res = await getDashboardData(activeTenant);
         if (res.success) {
             setMetrics(res.metrics);
-
-            // 1. Identify which widgets this specific role is allowed to see
-            const allowedWidgets = Object.keys(WIDGET_REGISTRY).filter(key =>
-                WIDGET_REGISTRY[key].roles.includes(userRole)
-            );
-
-            // 2. Filter their saved layout to ONLY include allowed widgets 
-            // (prevents unauthorized access if they change roles or have stale DB data)
+            const allowedWidgets = Object.keys(WIDGET_REGISTRY).filter(key => WIDGET_REGISTRY[key].roles.includes(userRole));
             const savedLayout = res.layout.length > 0 ? res.layout : allowedWidgets;
             const secureLayout = savedLayout.filter((key: string) => allowedWidgets.includes(key));
-
             setLayout(secureLayout);
         }
         setLoading(false);
@@ -92,7 +82,8 @@ export default function FinancialDashboard({ tenantId, userRole = 'VIEWER' }: { 
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} dy={10} />
                             <Tooltip formatter={(value: number) => formatValue(value, 'currency')} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                            <Line type="monotone" dataKey="value" stroke={COLORS[config.color as keyof typeof COLORS]} strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
+                            {/* SARGENT FIX: isAnimationActive={false} prevents the visual glitching on hover */}
+                            <Line isAnimationActive={false} type="monotone" dataKey="value" stroke={COLORS[config.color as keyof typeof COLORS]} strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
                         </LineChart>
                     </ResponsiveContainer>
                 </div>
@@ -108,7 +99,8 @@ export default function FinancialDashboard({ tenantId, userRole = 'VIEWER' }: { 
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} dy={10} />
                             <Tooltip formatter={(value: number) => formatValue(value, 'currency')} cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                            <Bar dataKey="value" fill={COLORS[config.color as keyof typeof COLORS]} radius={[4, 4, 0, 0]} barSize={30} />
+                            {/* SARGENT FIX: Disable animation */}
+                            <Bar isAnimationActive={false} dataKey="value" fill={COLORS[config.color as keyof typeof COLORS]} radius={[4, 4, 0, 0]} barSize={30} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
@@ -126,13 +118,14 @@ export default function FinancialDashboard({ tenantId, userRole = 'VIEWER' }: { 
                 <div className="h-48 mt-4 w-full relative">
                     <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                            <Pie data={data} innerRadius={50} outerRadius={70} paddingAngle={2} dataKey="value" stroke="none">
+                            {/* SARGENT FIX: Disable animation to prevent layout thrashing */}
+                            <Pie isAnimationActive={false} data={data} innerRadius={50} outerRadius={70} paddingAngle={2} dataKey="value" stroke="none">
                                 {data.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                             </Pie>
-                            <Tooltip formatter={(value: number) => formatValue(value, 'currency')} />
+                            {/* Tooltip intentionally removed to prevent overlap with center absolute text */}
                         </PieChart>
                     </ResponsiveContainer>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
                         <span className={`text-xl font-black ${val < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatValue(val, 'percentage')}</span>
                         <span className="text-[9px] font-bold text-slate-400 uppercase">Margin</span>
                     </div>
@@ -153,18 +146,16 @@ export default function FinancialDashboard({ tenantId, userRole = 'VIEWER' }: { 
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between bg-slate-900 text-white p-6 rounded-xl shadow-lg gap-4">
+            {/* SARGENT FIX: Clean Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between bg-white border border-slate-200 p-6 rounded-xl shadow-sm gap-4">
                 <div>
-                    <h1 className="text-xl font-bold uppercase tracking-wider">{userRole} Dashboard</h1>
-                    <p className="text-xs text-slate-400 mt-1 font-mono">Role-Isolated KPI Aggregations</p>
+                    <h1 className="text-xl font-bold uppercase tracking-wider text-slate-800">Dashboard</h1>
                 </div>
-                <button onClick={() => { setTempLayout([...layout]); setIsCustomizing(true); }} className="flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-white px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all shadow-md border border-slate-700">
+                <button onClick={() => { setTempLayout([...layout]); setIsCustomizing(true); }} className="flex items-center justify-center space-x-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all">
                     <Settings2 size={16} /> <span>Customize View</span>
                 </button>
             </div>
 
-            {/* Dynamic Widget Grid (Recharts) */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {layout.length === 0 ? (
                     <div className="col-span-full bg-slate-50 border border-dashed border-slate-300 rounded-xl p-12 text-center text-slate-500">
@@ -201,7 +192,6 @@ export default function FinancialDashboard({ tenantId, userRole = 'VIEWER' }: { 
                 )}
             </div>
 
-            {/* Customization Modal */}
             {isCustomizing && (
                 <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
@@ -215,7 +205,6 @@ export default function FinancialDashboard({ tenantId, userRole = 'VIEWER' }: { 
 
                         <div className="p-6 max-h-[60vh] overflow-y-auto space-y-3">
                             {Object.entries(WIDGET_REGISTRY).map(([key, config]) => {
-                                // THE STRICT LENS: Prevent unauthorized roles from even seeing restricted widgets
                                 if (!config.roles.includes(userRole)) return null;
 
                                 const isSelected = tempLayout.includes(key);

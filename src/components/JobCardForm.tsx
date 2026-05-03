@@ -1,9 +1,51 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { createJobCard } from '@/actions/production';
-import { Plus, Trash2, Save, Wrench, Loader2, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Save, Wrench, Loader2, AlertCircle, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
+
+// SARGENT FIX: Custom Enterprise Combobox to replace native datalist
+const CustomCombobox = ({ value, onChange, options, placeholder }: any) => {
+    const [open, setOpen] = useState(false);
+    const [query, setQuery] = useState('');
+    const wrapperRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: any) => {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target)) setOpen(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const filtered = options.filter((o: any) => o.label.toLowerCase().includes(query.toLowerCase()));
+    const selectedLabel = options.find((o: any) => o.value === value)?.label || '';
+
+    return (
+        <div ref={wrapperRef} className="relative w-full">
+            <div onClick={() => setOpen(!open)} className="w-full border border-slate-300 rounded-md p-2.5 text-sm bg-white cursor-pointer flex justify-between items-center hover:border-indigo-400 transition-colors">
+                <span className={selectedLabel ? 'text-slate-900 font-medium' : 'text-slate-400'}>{selectedLabel || placeholder}</span>
+                <ChevronDown size={16} className="text-slate-400" />
+            </div>
+            {open && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden">
+                    <div className="p-2 border-b border-slate-100 bg-slate-50">
+                        <input autoFocus type="text" className="w-full bg-white border border-slate-200 rounded p-2 text-xs outline-none focus:border-indigo-500" placeholder="Type to search..." value={query} onChange={e => setQuery(e.target.value)} />
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                        {filtered.map((o: any) => (
+                            <div key={o.value} className="px-4 py-2.5 text-sm hover:bg-indigo-50 cursor-pointer text-slate-700 border-b border-slate-50 last:border-0" onClick={() => { onChange(o.value); setOpen(false); setQuery(''); }}>
+                                {o.label}
+                            </div>
+                        ))}
+                        {filtered.length === 0 && <div className="p-4 text-xs text-slate-400 text-center">No matches found</div>}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 export default function JobCardForm({ items, tenantId }: { items: any[], tenantId: string }) {
     const [loading, setLoading] = useState(false);
@@ -16,6 +58,9 @@ export default function JobCardForm({ items, tenantId }: { items: any[], tenantI
     const finishedGoods = items.filter(i => i.category !== 'RAW_MATERIAL');
     const rawMaterials = items.filter(i => i.category === 'RAW_MATERIAL' || i.category === 'COMPONENT');
 
+    const fgOptions = finishedGoods.map(i => ({ value: i.id, label: `[${i.sku}] ${i.name}` }));
+    const rmOptions = rawMaterials.map(i => ({ value: i.id, label: `[${i.sku}] ${i.name} (Stock: ${i.stock_quantity})` }));
+
     const addMaterial = () => setMaterials([...materials, { id: crypto.randomUUID(), searchStr: '', quantity: 1 }]);
     const updateMaterial = (id: string, field: string, value: string | number) => setMaterials(materials.map(m => m.id === id ? { ...m, [field]: value } : m));
     const removeMaterial = (id: string) => { if (materials.length > 1) setMaterials(materials.filter(m => m.id !== id)); };
@@ -25,14 +70,11 @@ export default function JobCardForm({ items, tenantId }: { items: any[], tenantI
         setError(null);
         setLoading(true);
 
-        // Map search strings back to IDs
-        const payloadMaterials = materials.map(m => {
-            // Extract SKU from "[SKU] Name" format
-            const match = m.searchStr.match(/^\[(.*?)\]/);
-            const sku = match ? match[1] : '';
-            const item = rawMaterials.find(i => i.sku === sku);
-            return { materialId: item?.id || '', quantity: m.quantity };
-        }).filter(m => m.materialId !== '');
+        // Map direct IDs since we are using CustomCombobox now
+        const payloadMaterials = materials.map(m => ({
+            materialId: m.searchStr,
+            quantity: m.quantity
+        })).filter(m => m.materialId !== '');
 
         if (payloadMaterials.length === 0) {
             setError("You must select valid raw materials.");
@@ -69,11 +111,13 @@ export default function JobCardForm({ items, tenantId }: { items: any[], tenantI
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="md:col-span-2">
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Target Finished Good</label>
-                        {/* Datalist for fast searching */}
-                        <input required list="finished-goods" value={formData.productId} onChange={e => setFormData({ ...formData, productId: e.target.value })} className="w-full border border-slate-300 rounded-md p-2.5 text-sm placeholder:text-slate-400" placeholder="Type to search products..." />
-                        <datalist id="finished-goods">
-                            {finishedGoods.map(item => <option key={item.id} value={item.id}>[{item.sku}] {item.name}</option>)}
-                        </datalist>
+                        {/* SARGENT FIX: Replaced native datalist with Custom Enterprise Combobox */}
+                        <CustomCombobox
+                            value={formData.productId}
+                            onChange={(val: string) => setFormData({ ...formData, productId: val })}
+                            options={fgOptions}
+                            placeholder="Select Target Product..."
+                        />
                     </div>
                     {/* ... Rest of Header form (Quantity, Assigned To) remains the same ... */}
                 </div>
@@ -92,11 +136,13 @@ export default function JobCardForm({ items, tenantId }: { items: any[], tenantI
                             {materials.map((mat) => (
                                 <tr key={mat.id} className="bg-white">
                                     <td className="p-4">
-                                        {/* SARGENT FIX: Scalable searchable input */}
-                                        <input required list="raw-materials" value={mat.searchStr} onChange={e => updateMaterial(mat.id, 'searchStr', e.target.value)} className="w-full border border-slate-300 rounded-md p-2 text-sm placeholder:text-slate-300" placeholder="Type to search..." />
-                                        <datalist id="raw-materials">
-                                            {rawMaterials.map(item => <option key={item.id} value={`[${item.sku}] ${item.name}`}>Stock: {item.stock_quantity}</option>)}
-                                        </datalist>
+                                        {/* SARGENT FIX: Replaced native datalist with Custom Enterprise Combobox */}
+                                        <CustomCombobox
+                                            value={mat.searchStr}
+                                            onChange={(val: string) => updateMaterial(mat.id, 'searchStr', val)}
+                                            options={rmOptions}
+                                            placeholder="Select Raw Material..."
+                                        />
                                     </td>
                                     <td className="p-4"><input required type="number" min="0.01" step="0.01" value={mat.quantity} onChange={e => updateMaterial(mat.id, 'quantity', Number(e.target.value))} className="w-full border border-slate-300 rounded-md p-2 text-right font-mono text-sm" /></td>
                                     <td className="p-4 text-center"><button type="button" onClick={() => removeMaterial(mat.id)} className="text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={16} /></button></td>
