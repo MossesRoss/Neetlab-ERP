@@ -33,7 +33,8 @@ async function ensurePeriodOpen(tenantId: string, dateStr: string) {
 
 export async function generateInvoiceFromSO(tenantId: string, salesOrderId: string) {
     try {
-        const { data: so, error: soError } = await supabase.from('transactions').select('*, transaction_lines(*)').eq('id', salesOrderId).single();
+        // SARGENT FIX: Deep fetch to get item costs for COGS calculation
+        const { data: so, error: soError } = await supabase.from('transactions').select('*, transaction_lines(*, items(unit_price))').eq('id', salesOrderId).single();
         if (soError || !so) throw new Error("Sales Order not found.");
         if (so.status === 'INVOICED') throw new Error("Already invoiced.");
         if (so.status !== 'FULFILLED') throw new Error("Sales Order must be FULFILLED (inventory deducted) before it can be invoiced.");
@@ -45,7 +46,7 @@ export async function generateInvoiceFromSO(tenantId: string, salesOrderId: stri
 
         const { data: invoice, error: invError } = await supabase.from('transactions').insert({
             tenant_id: tenantId, entity_id: so.entity_id, type: 'INVOICE', status: 'UNPAID', reference_id: so.id,
-            transaction_date: transactionDate, total_amount: so.total_amount
+            transaction_date: transactionDate, total_amount: so.total_amount, tax_amount: so.tax_amount
         }).select().single();
 
         if (invError) throw new Error(`Invoice Creation Error: ${invError.message}`);
@@ -56,21 +57,45 @@ export async function generateInvoiceFromSO(tenantId: string, salesOrderId: stri
         await supabase.from('transaction_lines').insert(linesToInsert);
         await supabase.from('transactions').update({ status: 'INVOICED' }).eq('id', so.id);
 
-        const { data: accounts } = await supabase.from('accounts').select('id, account_number').eq('tenant_id', tenantId).in('account_number', ['1200', '4000']);
+        // SARGENT FIX: Enterprise GL Routing - AR, Revenue, Tax Payable, COGS, and Inventory
+        const { data: accounts } = await supabase.from('accounts').select('id, account_number').eq('tenant_id', tenantId).in('account_number', ['1200', '4000', '2500', '5000', '1500']);
         const arAccount = accounts?.find(a => a.account_number === '1200');
         const revAccount = accounts?.find(a => a.account_number === '4000');
+        const taxAccount = accounts?.find(a => a.account_number === '2500');
+        const cogsAccount = accounts?.find(a => a.account_number === '5000');
+        const invAccount = accounts?.find(a => a.account_number === '1500');
 
-        if (arAccount && revAccount) {
+        if (arAccount && revAccount && taxAccount && cogsAccount && invAccount) {
             const { data: je } = await supabase.from('journal_entries').insert({
                 tenant_id: tenantId, transaction_id: invoice.id, entry_date: transactionDate,
-                memo: `Auto-generated Revenue Recognition for Invoice ${invoice.id.split('-')[0].toUpperCase()}`
+                memo: `Revenue, Tax & COGS Recognition for Invoice INV-${invoice.id.split('-')[0].toUpperCase()}`
             }).select().single();
 
+            const totalAmount = Number(so.total_amount || 0);
+            const taxAmount = Number(so.tax_amount || 0);
+            const revenueAmount = totalAmount - taxAmount;
+
+            // Calculate COGS based on original standard unit cost of items
+            const totalCogs = so.transaction_lines.reduce((sum: number, line: any) => {
+                return sum + (Number(line.quantity) * Number(line.items?.unit_price || 0));
+            }, 0);
+
             if (je) {
-                await supabase.from('journal_lines').insert([
-                    { journal_entry_id: je.id, account_id: arAccount.id, debit: so.total_amount, credit: 0 },
-                    { journal_entry_id: je.id, account_id: revAccount.id, debit: 0, credit: so.total_amount }
-                ]);
+                const journalLines = [
+                    // 1. Recognize Revenue & Tax Liability
+                    { journal_entry_id: je.id, account_id: arAccount.id, debit: totalAmount, credit: 0 },
+                    { journal_entry_id: je.id, account_id: revAccount.id, debit: 0, credit: revenueAmount },
+
+                    // 2. Recognize Cost of Goods Sold & Decrease Asset
+                    { journal_entry_id: je.id, account_id: cogsAccount.id, debit: totalCogs, credit: 0 },
+                    { journal_entry_id: je.id, account_id: invAccount.id, debit: 0, credit: totalCogs }
+                ];
+
+                if (taxAmount > 0) {
+                    journalLines.push({ journal_entry_id: je.id, account_id: taxAccount.id, debit: 0, credit: taxAmount });
+                }
+
+                await supabase.from('journal_lines').insert(journalLines);
             }
         }
         revalidatePath('/');
@@ -176,19 +201,20 @@ export async function generateBillFromPO(tenantId: string, poId: string) {
         await supabase.from('transaction_lines').insert(linesToInsert);
         await supabase.from('transactions').update({ status: 'BILLED' }).eq('id', po.id);
 
-        const { data: accounts } = await supabase.from('accounts').select('id, account_number').eq('tenant_id', tenantId).in('account_number', ['2000', '5000']);
+        // SARGENT FIX: Enterprise GL Routing - Capitalize to Inventory Asset (1500), not COGS (5000)
+        const { data: accounts } = await supabase.from('accounts').select('id, account_number').eq('tenant_id', tenantId).in('account_number', ['2000', '1500']);
         const apAccount = accounts?.find(a => a.account_number === '2000');
-        const cogsAccount = accounts?.find(a => a.account_number === '5000');
+        const invAccount = accounts?.find(a => a.account_number === '1500');
 
-        if (!apAccount || !cogsAccount) throw new Error("Missing required COA accounts: 2000 (A/P) or 5000 (COGS). Check Chart of Accounts.");
+        if (!apAccount || !invAccount) throw new Error("Missing required COA accounts: 2000 (A/P) or 1500 (Inventory Asset). Check Chart of Accounts.");
 
         const { data: je } = await supabase.from('journal_entries').insert({
-            tenant_id: tenantId, transaction_id: bill.id, entry_date: transactionDate, memo: `Vendor Bill Recognition for PO ${po.id.split('-')[0].toUpperCase()}`
+            tenant_id: tenantId, transaction_id: bill.id, entry_date: transactionDate, memo: `Capitalize Inventory Asset from PO ${po.id.split('-')[0].toUpperCase()}`
         }).select().single();
 
         if (je) {
             await supabase.from('journal_lines').insert([
-                { journal_entry_id: je.id, account_id: cogsAccount.id, debit: po.total_amount, credit: 0 },
+                { journal_entry_id: je.id, account_id: invAccount.id, debit: po.total_amount, credit: 0 },
                 { journal_entry_id: je.id, account_id: apAccount.id, debit: 0, credit: po.total_amount }
             ]);
         }

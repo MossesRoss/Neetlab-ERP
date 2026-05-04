@@ -107,3 +107,28 @@ export async function createAccount(formData: any) {
         return { success: false, error: error.message };
     }
 }
+
+// SARGENT FIX: Secure Account Updater
+export async function updateAccount(tenantId: string, accountId: string, formData: any) {
+    const supabase = getDbClient();
+    try {
+        // Enterprise Rule: We ONLY update Name and Status.
+        // Type and Number are immutable once created to protect the ledger.
+        const { error } = await supabase
+            .from('accounts')
+            .update({
+                name: formData.name,
+                is_active: formData.is_active
+            })
+            .eq('id', accountId)
+            .eq('tenant_id', tenantId);
+
+        if (error) throw new Error(`Account update failed: ${error.message}`);
+
+        revalidatePath('/');
+        return { success: true };
+    } catch (error: any) {
+        console.error("Failed to update account:", error);
+        return { success: false, error: error.message };
+    }
+}

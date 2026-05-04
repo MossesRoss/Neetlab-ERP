@@ -30,7 +30,9 @@ import UserManagement from "@/components/UserManagement";
 import UserForm from "@/components/UserForm";
 import StockReport from "@/components/StockReport";
 import PeriodManagement from "@/components/PeriodManagement";
-import ReceivePaymentList from "@/components/ReceivePaymentList"; // SARGENT FIX: Import Treasury
+import ReceivePaymentList from "@/components/ReceivePaymentList";
+import GeneralLedgerReport from "@/components/GeneralLedgerReport"; // SARGENT FIX: Import GL Viewer
+
 
 // Server Actions
 import { getPurchaseOrders, getPurchaseOrderDetails } from "@/actions/p2p";
@@ -200,6 +202,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
     } else if (activeModule === 'chart_of_accounts') {
       const response = await getAccounts(TENANT_ID);
       moduleData = response.data || [];
+    } else if (activeModule === 'general_ledger') {
+      // SARGENT FIX: Pass down the accounts for the filter dropdown
+      const accRes = await getAccounts(TENANT_ID);
+      accountsList = accRes.data || [];
     } else if (activeModule === 'journal_entries') {
       if (action === 'create') {
         const accRes = await getAccounts(TENANT_ID);
@@ -262,6 +268,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
       items: [
         { id: 'chart_of_accounts', icon: Landmark, label: 'Chart of Accounts' },
         { id: 'journal_entries', icon: FileText, label: 'Journal Entries' },
+        { id: 'general_ledger', icon: FileText, label: 'General Ledger' }, // SARGENT FIX: Added GL Link
         { id: 'period_close', icon: AlertTriangle, label: 'Period Close' }
       ]
     },
@@ -286,13 +293,17 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
     <div className="h-screen w-full overflow-hidden bg-slate-50 font-sans text-slate-900 flex flex-col">
       <header className="h-14 border-b border-slate-200 bg-white flex items-center justify-between px-6 sticky top-0 z-30 shadow-sm print:hidden">
         <div className="flex items-center">
-          {/* SARGENT FIX: Removed duplicate HTML text, relying purely on the logo image */}
-          <div className="flex items-center">
-            <img src="/logo.png" alt="Srini ERP" className="h-7 object-contain" />
+          {/* SARGENT FIX: Re-applying Srini ERP typography & enlarged TankTech logo */}
+          <div className="flex items-center space-x-2">
+            <img src="/logo.png" alt="Srini Logo" className="h-8 w-8 object-contain" />
+            <div className="flex flex-col justify-center">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em] leading-none mb-0.5">Srini</span>
+              <span className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">ERP</span>
+            </div>
           </div>
 
-          <div className="hidden md:flex items-center ml-5 pl-5 border-l border-slate-300 h-7">
-            <img src="/tanktech.png" alt="TankTechAsia" className="h-5 object-contain opacity-90" />
+          <div className="hidden md:flex items-center ml-6 pl-6 border-l border-slate-200 h-10">
+            <img src="/tanktech.png" alt="TankTechAsia" className="h-12 object-contain opacity-90" />
           </div>
         </div>
 
@@ -415,6 +426,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
               )
             ) : activeModule === 'chart_of_accounts' ? (
               <ChartOfAccounts accounts={moduleData || []} />
+            ) : activeModule === 'general_ledger' ? (
+              // SARGENT FIX: Render the Immutable GL
+              <GeneralLedgerReport tenantId={TENANT_ID} accounts={accountsList} />
             ) : activeModule === 'entity_directory' ? (
               action === 'create' || action === 'edit' ? (
                 <EntityForm tenantId={TENANT_ID} initialData={activeRecord} />

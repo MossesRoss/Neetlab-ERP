@@ -19,15 +19,15 @@ export const ROLE_LABELS = {
 
 // The Strict Lens Matrix: Maps exact module IDs from the UI to allowed roles
 export const MODULE_PERMISSIONS = {
-    // SARGENT FIX: Open the base dashboard to everyone (Widgets will be filtered internally)
     'dashboard': [ROLES.ADMIN, ROLES.ACCOUNTANT, ROLES.WAREHOUSE, ROLES.PROCUREMENT, ROLES.SALES],
 
     // Financials
     'chart_of_accounts': [ROLES.ADMIN, ROLES.ACCOUNTANT],
     'journal_entries': [ROLES.ADMIN, ROLES.ACCOUNTANT],
+    'general_ledger': [ROLES.ADMIN, ROLES.ACCOUNTANT], // SARGENT FIX: Added GL Report Access
     'period_close': [ROLES.ADMIN, ROLES.ACCOUNTANT],
 
-    // P2P & Inventory (Separated Duties)
+    // P2P & Inventory
     'purchase_orders': [ROLES.ADMIN, ROLES.PROCUREMENT],
     'bills': [ROLES.ADMIN, ROLES.ACCOUNTANT],
     'payments_out': [ROLES.ADMIN, ROLES.ACCOUNTANT],
@@ -49,17 +49,9 @@ export const MODULE_PERMISSIONS = {
     'user_management': [ROLES.ADMIN],
 } as const;
 
-/**
- * Validates if a user's role has access to a specific module
- */
 export function canAccess(role: string, moduleId: string): boolean {
     if (!role) return false;
-
-    // Safely look up the allowed roles
     const allowedRoles = MODULE_PERMISSIONS[moduleId as keyof typeof MODULE_PERMISSIONS] as readonly string[] | undefined;
-
-    // THE FAIL-SAFE: If the module isn't explicitly defined, deny access.
     if (!allowedRoles) return false;
-
     return allowedRoles.includes(role);
 }
