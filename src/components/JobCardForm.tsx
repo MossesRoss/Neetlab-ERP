@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { createJobCard, updateJobCard } from '@/actions/production';
-import { Plus, Trash2, Save, Wrench, Loader2, ChevronDown, ArrowLeft, ExternalLink, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, Save, Wrench, Loader2, ChevronDown, ArrowLeft, ExternalLink, CheckCircle2, Printer } from 'lucide-react';
 import Link from 'next/link';
 
 const CustomCombobox = ({ value, onChange, options }: any) => {
@@ -92,20 +92,18 @@ export default function JobCardForm({ items, entities, users, tenantId, initialD
         setMaterials(materials.map(m => m.id === id ? { ...m, taxCode: code, taxRate: rate } : m));
     };
 
-    const getLineTotal = (mat: any) => {
-        const sub = (Number(mat.quantity) || 0) * (Number(mat.unitPrice) || 0);
-        const afterDisc = sub * (1 - (Number(mat.discountRate) || 0) / 100);
-        return afterDisc * (1 + (Number(mat.taxRate) || 0) / 100);
-    };
+    // SARGENT FIX: Refined Mathematical Breakdown
+    const getLineGross = (mat: any) => (Number(mat.quantity) || 0) * (Number(mat.unitPrice) || 0);
+    const getLineDiscAmt = (mat: any) => getLineGross(mat) * ((Number(mat.discountRate) || 0) / 100);
+    const getLineNetPreTax = (mat: any) => getLineGross(mat) - getLineDiscAmt(mat);
+    const getLineTaxAmt = (mat: any) => getLineNetPreTax(mat) * ((Number(mat.taxRate) || 0) / 100);
+    const getLineTotal = (mat: any) => getLineNetPreTax(mat) + getLineTaxAmt(mat);
 
-    const getLineDiscAmt = (mat: any) => {
-        const sub = (Number(mat.quantity) || 0) * (Number(mat.unitPrice) || 0);
-        return sub * ((Number(mat.discountRate) || 0) / 100);
-    };
-
-    const subtotal = materials.reduce((sum, m) => sum + getLineTotal(m), 0);
-    const overallDiscountAmt = subtotal * ((Number(formData.overallDiscount) || 0) / 100);
-    const totalJobAmount = subtotal - overallDiscountAmt;
+    const totalGrossPreTax = materials.reduce((sum, m) => sum + getLineNetPreTax(m), 0);
+    const totalTax = materials.reduce((sum, m) => sum + getLineTaxAmt(m), 0);
+    const subtotalWithTax = totalGrossPreTax + totalTax;
+    const overallDiscountAmt = subtotalWithTax * ((Number(formData.overallDiscount) || 0) / 100);
+    const finalTotalAmount = subtotalWithTax - overallDiscountAmt;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -128,7 +126,7 @@ export default function JobCardForm({ items, entities, users, tenantId, initialD
 
     return (
         <div className="w-full h-full flex flex-col space-y-4">
-            <div className="flex items-center space-x-2 text-sm text-slate-500 font-medium pb-2 border-b border-slate-200">
+            <div className="flex items-center space-x-2 text-sm text-slate-500 font-medium pb-2 border-b border-slate-200 print:hidden">
                 <Link href="/?module=job_cards&action=list" className="hover:text-indigo-600 flex items-center transition-colors">
                     <ArrowLeft size={16} className="mr-1" /> Back to Ledger
                 </Link>
@@ -136,11 +134,10 @@ export default function JobCardForm({ items, entities, users, tenantId, initialD
                 <span className="text-slate-800 font-bold uppercase tracking-wider">{isEditing ? `JOB-${initialData.job_number || initialData.id.split('-')[0].toUpperCase()}` : 'New Quote'}</span>
             </div>
 
-            {/* SARGENT FIX: items-start forces perfect top-alignment of the two columns */}
             <div className="flex flex-col lg:flex-row gap-6 w-full items-start animate-in fade-in slide-in-from-bottom-4">
 
-                {/* LEFT PANE: Sticky Status Tracker */}
-                <div className="w-full lg:w-72 flex-shrink-0 sticky top-6">
+                {/* LEFT PANE: Sticky Status Tracker (Hidden in Print Mode) */}
+                <div className="w-full lg:w-72 flex-shrink-0 sticky top-6 print:hidden">
                     <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
                         <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Workflow Status</h3>
                         <div className="space-y-6">
@@ -172,23 +169,29 @@ export default function JobCardForm({ items, entities, users, tenantId, initialD
                 </div>
 
                 {/* RIGHT PANE: Full Width Form */}
-                <div className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden min-w-0">
-                    <div className="bg-indigo-950 text-white p-6 flex justify-between items-center">
+                <div className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden min-w-0 print:border-none print:shadow-none">
+                    <div className="bg-indigo-950 text-white p-6 flex justify-between items-center print:bg-white print:text-black print:border-b print:border-slate-800">
                         <div className="flex items-center space-x-3">
-                            <Wrench size={24} className="text-indigo-400" />
+                            <Wrench size={24} className="text-indigo-400 print:text-slate-800" />
                             <div><h2 className="text-lg font-bold tracking-wider uppercase">{isEditing ? 'Modify Job Definition' : 'Issue Job Quote'}</h2></div>
                         </div>
+                        {isEditing && (
+                            <div className="text-right hidden print:block">
+                                <p className="font-bold text-lg">JOB-{initialData.job_number || initialData.id.split('-')[0].toUpperCase()}</p>
+                                <p className="text-sm font-mono">{new Date().toLocaleDateString()}</p>
+                            </div>
+                        )}
                     </div>
 
                     <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-8">
-                        {error && <div className="bg-rose-50 text-rose-600 p-4 rounded-lg text-sm font-bold border border-rose-200">{error}</div>}
+                        {error && <div className="bg-rose-50 text-rose-600 p-4 rounded-lg text-sm font-bold border border-rose-200 print:hidden">{error}</div>}
 
-                        <div className="bg-slate-50 p-6 rounded-xl border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="bg-slate-50 p-6 rounded-xl border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-6 print:bg-white print:border-none print:p-0">
                             <div>
                                 <label className="flex items-center text-xs font-bold text-slate-500 uppercase mb-2">
                                     Customer Link
                                     {formData.customerId && (
-                                        <Link href={`/?module=entity_directory&action=edit&id=${formData.customerId}`} target="_blank" className="ml-2 text-indigo-500 hover:text-indigo-700 transition-colors">
+                                        <Link href={`/?module=entity_directory&action=edit&id=${formData.customerId}`} target="_blank" className="ml-2 text-indigo-500 hover:text-indigo-700 transition-colors print:hidden">
                                             <ExternalLink size={14} />
                                         </Link>
                                     )}
@@ -212,20 +215,23 @@ export default function JobCardForm({ items, entities, users, tenantId, initialD
                             </div>
                         </div>
 
-                        {/* Section: Horizontally Scrollable BOM */}
-                        <div className="w-full border border-slate-200 rounded-lg shadow-sm bg-white">
-                            <div className="overflow-x-auto min-h-[350px]">
-                                <table className="w-full text-left text-sm min-w-[1000px]">
-                                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider font-bold">
+                        {/* Section: Horizontally & Vertically Scrollable BOM */}
+                        <div className="w-full border border-slate-200 rounded-lg shadow-sm bg-white overflow-hidden print:border-none print:shadow-none">
+                            <div className="overflow-auto min-h-[350px] max-h-[500px] print:overflow-visible print:max-h-none">
+                                {/* SARGENT FIX: Expanded to 1500px to give Line Level Tax Amt breathing room */}
+                                <table className="w-full text-left text-sm min-w-[1500px] print:min-w-full">
+                                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider font-bold sticky top-0 z-20 print:static print:bg-white print:border-slate-800">
                                         <tr>
                                             <th className="p-4">Line Items</th>
-                                            <th className="p-4 w-20">Qty</th>
-                                            <th className="p-4 w-24">Rate (₹)</th>
-                                            <th className="p-4 w-20">Disc (%)</th>
-                                            <th className="p-4 w-24 text-right">Disc Amt</th>
+                                            <th className="p-4 w-24">Qty</th>
+                                            <th className="p-4 w-28">Rate (₹)</th>
+                                            <th className="p-4 w-24">Disc (%)</th>
+                                            <th className="p-4 w-28 text-right">Disc Amt</th>
                                             <th className="p-4 w-32">Tax Code</th>
-                                            <th className="p-4 w-28 text-right">Amount</th>
-                                            <th className="p-4 w-12 text-center"></th>
+                                            <th className="p-4 w-20 text-right">Tax (%)</th>
+                                            <th className="p-4 w-28 text-right">Tax Amt</th>
+                                            <th className="p-4 w-32 text-right">Amount</th>
+                                            <th className="p-4 w-12 text-center print:hidden"></th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
@@ -238,13 +244,12 @@ export default function JobCardForm({ items, entities, users, tenantId, initialD
                                                 <td className="p-4"><input type="number" min="0" step="0.01" value={mat.unitPrice} onChange={e => updateMaterial(mat.id, 'unitPrice', e.target.value)} className="w-full border border-slate-300 rounded-md p-2 text-right font-mono text-sm focus:border-indigo-500 outline-none h-10" /></td>
                                                 <td className="p-4"><input type="number" min="0" max="100" step="0.01" value={mat.discountRate} onChange={e => updateMaterial(mat.id, 'discountRate', e.target.value)} className="w-full border border-slate-300 rounded-md p-2 text-right font-mono text-sm focus:border-indigo-500 outline-none h-10" /></td>
 
-                                                {/* SARGENT FIX: Read-only auto-calculated Discount Amount field */}
-                                                <td className="p-4 text-right font-mono text-rose-500 bg-slate-50/50 rounded-md font-medium">
+                                                <td className="p-4 text-right font-mono text-rose-500 bg-slate-50/50 rounded-md font-medium print:bg-white">
                                                     ₹{getLineDiscAmt(mat).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                 </td>
 
                                                 <td className="p-4">
-                                                    <select value={mat.taxCode} onChange={e => handleTaxChange(mat.id, e.target.value)} className="w-full border border-slate-300 rounded-md p-2 text-sm focus:border-indigo-500 outline-none bg-white h-10">
+                                                    <select value={mat.taxCode} onChange={e => handleTaxChange(mat.id, e.target.value)} className="w-full border border-slate-300 rounded-md p-2 text-sm focus:border-indigo-500 outline-none bg-white h-10 appearance-none">
                                                         <option value="EXEMPT">Exempt (0%)</option>
                                                         <option value="GST5">GST (5%)</option>
                                                         <option value="GST12">GST (12%)</option>
@@ -252,38 +257,60 @@ export default function JobCardForm({ items, entities, users, tenantId, initialD
                                                         <option value="GST28">GST (28%)</option>
                                                     </select>
                                                 </td>
+
+                                                <td className="p-4">
+                                                    <div className="w-full bg-slate-50 border border-slate-200 rounded-md p-2 text-right font-mono text-sm text-slate-500 h-10 flex items-center justify-end print:bg-white print:border-none">
+                                                        {mat.taxRate}%
+                                                    </div>
+                                                </td>
+
+                                                {/* SARGENT FIX: Line Level Tax Amount */}
+                                                <td className="p-4 text-right font-mono text-slate-500 bg-slate-50/50 rounded-md font-medium print:bg-white">
+                                                    ₹{getLineTaxAmt(mat).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </td>
+
                                                 <td className="p-4 text-right font-mono font-bold text-slate-800">₹{getLineTotal(mat).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                                <td className="p-4 text-center"><button type="button" onClick={() => removeMaterial(mat.id)} className="text-slate-400 hover:text-rose-500 transition-colors p-2 rounded-full hover:bg-rose-50"><Trash2 size={16} /></button></td>
+                                                <td className="p-4 text-center print:hidden"><button type="button" onClick={() => removeMaterial(mat.id)} className="text-slate-400 hover:text-rose-500 transition-colors p-2 rounded-full hover:bg-rose-50"><Trash2 size={16} /></button></td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
                             </div>
-                            <div className="p-3 bg-white border-t border-slate-100">
+                            <div className="p-3 bg-white border-t border-slate-100 print:hidden">
                                 <button type="button" onClick={() => setMaterials([...materials, { id: crypto.randomUUID(), materialId: '', quantity: '', unitPrice: '', discountRate: '', taxCode: 'EXEMPT', taxRate: 0 }])} className="text-xs font-bold text-indigo-600 uppercase flex items-center hover:text-indigo-800 transition-colors"><Plus size={14} className="mr-1" /> Add Item</button>
                             </div>
                         </div>
 
                         {/* Section: Financial Totals */}
                         <div className="flex justify-end pt-4">
-                            <div className="w-80 space-y-3 bg-slate-50 p-6 rounded-xl border border-slate-200 shadow-sm">
+                            <div className="w-80 space-y-3 bg-slate-50 p-6 rounded-xl border border-slate-200 shadow-sm print:bg-white print:border-none print:shadow-none print:p-0">
                                 <div className="flex justify-between items-center text-sm">
-                                    <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Subtotal</span>
-                                    <span className="text-slate-800 font-mono">₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Total Gross (Pre-Tax)</span>
+                                    <span className="text-slate-800 font-mono">₹{totalGrossPreTax.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Total Tax</span>
+                                    <span className="text-slate-800 font-mono">₹{totalTax.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-sm">
                                     <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Overall Discount (%)</span>
-                                    <input type="number" min="0" max="100" step="0.01" value={formData.overallDiscount} onChange={e => setFormData({ ...formData, overallDiscount: e.target.value })} className="w-20 border border-slate-300 rounded p-1.5 text-right font-mono text-xs focus:border-indigo-500 outline-none" />
+                                    <input type="number" min="0" max="100" step="0.01" value={formData.overallDiscount} onChange={e => setFormData({ ...formData, overallDiscount: e.target.value })} className="w-20 border border-slate-300 rounded p-1.5 text-right font-mono text-xs focus:border-indigo-500 outline-none print:border-none print:p-0" />
                                 </div>
                                 <div className="flex justify-between items-center text-lg font-black pt-3 border-t border-slate-200">
-                                    <span className="uppercase tracking-wider text-xs">Total Amount</span>
-                                    <span className="text-indigo-600 font-mono">₹{totalJobAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    <span className="uppercase tracking-wider text-xs">Final Total</span>
+                                    <span className="text-indigo-600 font-mono">₹{finalTotalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Footer */}
-                        <div className="flex justify-end pt-6 border-t border-slate-200">
+                        {/* Footer (Hidden in Print Mode) */}
+                        <div className="flex justify-end pt-6 border-t border-slate-200 space-x-4 print:hidden">
+                            {/* SARGENT FIX: Opens the dedicated document view in a new tab */}
+                            {isEditing && (
+                                <a href={`/?module=job_cards&action=print&id=${initialData.id}`} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-6 py-3 rounded-lg text-xs font-black uppercase tracking-widest shadow-sm transition-all">
+                                    <Printer size={16} /> <span>Print Document</span>
+                                </a>
+                            )}
                             <button type="submit" disabled={loading} className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-lg text-xs font-black uppercase tracking-widest shadow-md transition-all">
                                 {loading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} <span>{isEditing ? 'Save Changes' : 'Draft Job Quote'}</span>
                             </button>

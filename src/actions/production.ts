@@ -186,7 +186,8 @@ export async function getJobCardDetails(tenantId: string, jobId: string) {
     try {
         const { data, error } = await supabase
             .from('job_cards')
-            .select(`*, job_card_materials(*)`)
+            // SARGENT FIX: We must fetch the joined 'items' data for both the target product AND the BOM materials!
+            .select(`*, items(sku, name, uom), job_card_materials(*, items(sku, name, uom, stock_quantity))`)
             .eq('id', jobId)
             .eq('tenant_id', tenantId)
             .single();

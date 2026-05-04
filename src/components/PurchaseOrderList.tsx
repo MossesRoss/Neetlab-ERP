@@ -2,41 +2,45 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { Plus, Search, FileText, Package, Loader2, Receipt } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Plus, FileText, CheckCircle, Loader2, ShieldAlert, PackageCheck, Receipt } from 'lucide-react';
+import { updatePurchaseOrderStatus } from '@/actions/p2p';
 import { receivePurchaseOrder } from '@/actions/inventory';
 import { generateBillFromPO } from '@/actions/billing';
 
-export default function PurchaseOrderList({ orders }: { orders: any[] }) {
+export default function PurchaseOrderList({ orders, tenantId, userRole }: { orders: any[], tenantId: string, userRole: string }) {
+    const router = useRouter();
     const [loadingId, setLoadingId] = useState<string | null>(null);
-    const tenantId = '11111111-1111-1111-1111-111111111111';
 
-    const handleReceive = async (e: React.MouseEvent, poId: string) => {
+    const handleApprove = async (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
-        e.preventDefault();
-        
-        if (!confirm("Are you sure you want to receive these goods into inventory?")) return;
+        if (!confirm("Approve this Purchase Order? It will become a legally binding document ready for vendor dispatch.")) return;
 
-        setLoadingId(poId);
-        const result = await receivePurchaseOrder(tenantId, poId);
-        if (!result.success) {
-            alert("Error receiving goods: " + result.error);
-        }
+        setLoadingId(id);
+        const res = await updatePurchaseOrderStatus(tenantId, id, 'APPROVED');
+        if (!res.success) alert(res.error);
         setLoadingId(null);
     };
 
-    const handleGenerateBill = async (e: React.MouseEvent, poId: string) => {
+    // SARGENT FIX: Receive into Inventory (GRN)
+    const handleReceive = async (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
-        e.preventDefault();
+        if (!confirm("Receive items into inventory? This automatically generates a Goods Receipt Note (GRN) and increases your stock balance.")) return;
 
-        if (!confirm("Generate Vendor Bill and post to Ledger (A/P)?")) return;
+        setLoadingId(id);
+        const res = await receivePurchaseOrder(tenantId, id);
+        if (!res.success) alert(res.error);
+        setLoadingId(null);
+    };
 
-        setLoadingId(poId);
-        const result = await generateBillFromPO(tenantId, poId);
-        if (result.success) {
-            alert("Bill Generated and Ledger Updated!");
-        } else {
-            alert("Error: " + result.error);
-        }
+    // SARGENT FIX: Generate Accounts Payable Bill
+    const handleBill = async (e: React.MouseEvent, id: string) => {
+        e.stopPropagation();
+        if (!confirm("Generate Vendor Bill from this fulfilled order? This will create a liability in Accounts Payable.")) return;
+
+        setLoadingId(id);
+        const res = await generateBillFromPO(tenantId, id);
+        if (!res.success) alert(res.error);
         setLoadingId(null);
     };
 
@@ -62,9 +66,9 @@ export default function PurchaseOrderList({ orders }: { orders: any[] }) {
                             <th className="px-6 py-4">Transaction ID</th>
                             <th className="px-6 py-4">Date</th>
                             <th className="px-6 py-4">Vendor</th>
-                            <th className="px-6 py-4">Status</th>
+                            <th className="px-6 py-4 text-center">Status</th>
                             <th className="px-6 py-4 text-right">Total Amount</th>
-                            <th className="px-6 py-4 text-center">Actions</th>
+                            <th className="px-6 py-4 text-center">Next Action</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -77,56 +81,50 @@ export default function PurchaseOrderList({ orders }: { orders: any[] }) {
                             </tr>
                         ) : (
                             orders.map((order: any) => (
-                                <tr key={order.id} className="hover:bg-sky-50 transition-colors cursor-pointer group">
-                                    <td className="px-6 py-4 font-mono text-xs text-sky-700 font-medium">
-                                        {order.id.split('-')[0].toUpperCase()}...
+                                <tr
+                                    key={order.id}
+                                    onClick={() => router.push(`/?module=purchase_orders&action=edit&id=${order.id}`)}
+                                    className="hover:bg-sky-50 transition-colors cursor-pointer group"
+                                >
+                                    <td className="px-6 py-4 font-mono text-xs text-sky-700 font-bold">
+                                        PO-{order.transaction_number || order.id.split('-')[0].toUpperCase()}
                                     </td>
-                                    <td className="px-6 py-4 font-mono text-xs">{order.transaction_date}</td>
+                                    <td className="px-6 py-4 font-mono text-xs text-slate-500">{new Date(order.transaction_date).toLocaleDateString()}</td>
                                     <td className="px-6 py-4 font-medium">{order.entities?.name || 'Unknown Vendor'}</td>
-                                    <td className="px-6 py-4">
-                                        <span className={`px-2.5 py-1 border rounded text-[10px] font-bold uppercase tracking-wider ${
-                                            order.status === 'FULFILLED' 
-                                            ? 'bg-emerald-100 text-emerald-700 border-emerald-200' 
-                                            : order.status === 'BILLED'
-                                            ? 'bg-sky-100 text-sky-700 border-sky-200'
-                                            : 'bg-amber-100 text-amber-700 border-amber-200'
-                                        }`}>
+                                    <td className="px-6 py-4 text-center">
+                                        <span className={`px-2.5 py-1 border rounded text-[10px] font-bold uppercase tracking-wider ${order.status === 'BILLED' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                                                order.status === 'FULFILLED' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                                                    order.status === 'APPROVED' ? 'bg-indigo-100 text-indigo-700 border-indigo-200' :
+                                                        'bg-amber-100 text-amber-700 border-amber-200'
+                                            }`}>
                                             {order.status.replace('_', ' ')}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-right font-mono font-medium text-slate-900">
-                                        ${Number(order.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                    <td className="px-6 py-4 text-right font-mono font-bold text-slate-900">
+                                        ₹{Number(order.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                                     </td>
-                                    <td className="px-6 py-4 text-center">
-                                        {order.status === 'PENDING_APPROVAL' && (
-                                            <button
-                                                onClick={(e) => handleReceive(e, order.id)}
-                                                disabled={loadingId === order.id}
-                                                className="flex items-center space-x-1 mx-auto bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all shadow-sm disabled:opacity-50"
-                                                title="Receive Goods"
-                                            >
-                                                {loadingId === order.id ? (
-                                                    <Loader2 size={12} className="animate-spin" />
-                                                ) : (
-                                                    <Package size={12} />
-                                                )}
-                                                <span>Receive</span>
+                                    <td className="px-6 py-4 text-center" onClick={e => e.stopPropagation()}>
+                                        {/* SARGENT FIX: The Lifecycle Engine Rendering */}
+                                        {order.status === 'PENDING_APPROVAL' ? (
+                                            (userRole === 'ADMIN' || Number(order.total_amount) <= 50000) ? (
+                                                <button onClick={(e) => handleApprove(e, order.id)} disabled={loadingId === order.id} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all flex items-center mx-auto shadow-sm">
+                                                    {loadingId === order.id ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} className="mr-1" />} Approve
+                                                </button>
+                                            ) : (
+                                                <span className="flex items-center justify-center space-x-1 text-[10px] text-rose-500 font-bold uppercase tracking-wider">
+                                                    <ShieldAlert size={12} /><span>Requires Admin</span>
+                                                </span>
+                                            )
+                                        ) : order.status === 'APPROVED' ? (
+                                            <button onClick={(e) => handleReceive(e, order.id)} disabled={loadingId === order.id} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all flex items-center mx-auto shadow-sm">
+                                                {loadingId === order.id ? <Loader2 size={12} className="animate-spin" /> : <PackageCheck size={12} className="mr-1" />} Receive GRN
                                             </button>
-                                        )}
-                                        {order.status === 'FULFILLED' && (
-                                            <button
-                                                onClick={(e) => handleGenerateBill(e, order.id)}
-                                                disabled={loadingId === order.id}
-                                                className="flex items-center space-x-1 mx-auto bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all shadow-sm disabled:opacity-50"
-                                                title="Generate Vendor Bill"
-                                            >
-                                                {loadingId === order.id ? (
-                                                    <Loader2 size={12} className="animate-spin" />
-                                                ) : (
-                                                    <Receipt size={12} />
-                                                )}
-                                                <span>Bill PO</span>
+                                        ) : order.status === 'FULFILLED' ? (
+                                            <button onClick={(e) => handleBill(e, order.id)} disabled={loadingId === order.id} className="bg-sky-600 hover:bg-sky-700 text-white px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all flex items-center mx-auto shadow-sm">
+                                                {loadingId === order.id ? <Loader2 size={12} className="animate-spin" /> : <Receipt size={12} className="mr-1" />} Generate Bill
                                             </button>
+                                        ) : (
+                                            <span className="text-slate-300 text-lg leading-none">&middot;</span>
                                         )}
                                     </td>
                                 </tr>

@@ -118,16 +118,15 @@ export default function FinancialDashboard({ tenantId, userRole = 'VIEWER' }: { 
                 <div className="h-48 mt-4 w-full relative">
                     <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                            {/* SARGENT FIX: Disable animation to prevent layout thrashing */}
                             <Pie isAnimationActive={false} data={data} innerRadius={50} outerRadius={70} paddingAngle={2} dataKey="value" stroke="none">
                                 {data.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                             </Pie>
-                            {/* Tooltip intentionally removed to prevent overlap with center absolute text */}
                         </PieChart>
                     </ResponsiveContainer>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
-                        <span className={`text-xl font-black ${val < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatValue(val, 'percentage')}</span>
-                        <span className="text-[9px] font-bold text-slate-400 uppercase">Margin</span>
+                    {/* SARGENT FIX: Adjusted typography and spacing to fix text overlap in donut chart */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10 pt-1">
+                        <span className={`text-lg font-black leading-none ${val < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatValue(val, 'percentage')}</span>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase mt-1">Margin</span>
                     </div>
                 </div>
             );

@@ -18,14 +18,18 @@ import FinancialDashboard from "@/components/FinancialDashboard";
 import ItemMaster from "@/components/ItemMaster";
 import ItemForm from "@/components/ItemForm";
 import EntityDirectory from "@/components/EntityDirectory";
+import EntityForm from "@/components/EntityForm"; // SARGENT FIX: Import the new Form
 import BillList from "@/components/BillList";
 import InvoiceList from "@/components/InvoiceList";
 import PrintableInvoice from "@/components/PrintableInvoice";
+import PrintableJobCard from "@/components/PrintableJobCard";
+import PrintablePO from "@/components/PrintablePO"; // SARGENT FIX: Import PO Print
 import UserManagement from "@/components/UserManagement";
-import UserForm from "@/components/UserForm"; // SARGENT FIX: Import the new Form
+import UserForm from "@/components/UserForm";
 import StockReport from "@/components/StockReport";
 import PeriodManagement from "@/components/PeriodManagement";
-import { getPurchaseOrders } from "@/actions/p2p";
+// SARGENT FIX: Added missing getPurchaseOrderDetails import
+import { getPurchaseOrders, getPurchaseOrderDetails } from "@/actions/p2p";
 import { getGRNs } from "@/actions/inventory";
 import { getJobCards, getJobCardDetails } from "@/actions/production";
 import { getDeliveryChallans } from "@/actions/subcontracting";
@@ -67,6 +71,25 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
     return <PrintableInvoice invoice={response.data} />;
   }
 
+  // SARGENT FIX: Handle PO Document Printing
+  if (action === 'print' && activeModule === 'purchase_orders' && recordId) {
+    const [poRes, entRes] = await Promise.all([
+      getPurchaseOrderDetails(TENANT_ID, recordId),
+      getEntities(TENANT_ID)
+    ]);
+    return <PrintablePO po={poRes.data} entities={entRes.data || []} />;
+  }
+
+  // SARGENT FIX: Handle Job Card Document Printing
+  if (action === 'print' && activeModule === 'job_cards' && recordId) {
+    const [jobRes, entRes, userRes] = await Promise.all([
+      getJobCardDetails(TENANT_ID, recordId),
+      getEntities(TENANT_ID),
+      getUsers(TENANT_ID)
+    ]);
+    return <PrintableJobCard job={jobRes.data} entities={entRes.data || []} users={userRes.data || []} />;
+  }
+
   const isAuthorized = canAccess(USER_ROLE, activeModule as keyof typeof MODULE_PERMISSIONS);
 
   let accountsList = [];
@@ -84,8 +107,16 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
         activeRecord = moduleData.find((i: any) => i.id === recordId);
       }
     } else if (activeModule === 'entity_directory') {
-      const response = await getEntities(TENANT_ID);
-      moduleData = response.data || [];
+      // SARGENT FIX: Handle Create/Edit Routing Data Fetching
+      if (action === 'create' || action === 'edit') {
+        if (action === 'edit' && recordId) {
+          const entRes = await getEntities(TENANT_ID);
+          activeRecord = entRes.data?.find(e => e.id === recordId);
+        }
+      } else {
+        const response = await getEntities(TENANT_ID);
+        moduleData = response.data || [];
+      }
     } else if (activeModule === 'bills') {
       const response = await getBills(TENANT_ID);
       moduleData = response.data || [];
@@ -95,10 +126,16 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
       const response = await getInvoices(TENANT_ID);
       moduleData = response.data || [];
     } else if (activeModule === 'purchase_orders') {
-      if (action === 'create') {
-        const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
-        itemsList = itemRes.data || [];
-        entitiesList = entRes.data || [];
+      // SARGENT FIX: Enable editing and data injection for PO Form
+      const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
+      itemsList = itemRes.data || [];
+      entitiesList = entRes.data || [];
+
+      if (action === 'create' || action === 'edit') {
+        if (action === 'edit' && recordId) {
+          const poRes = await getPurchaseOrderDetails(TENANT_ID, recordId);
+          activeRecord = poRes.data;
+        }
       } else {
         const response = await getPurchaseOrders(TENANT_ID);
         moduleData = response.data || [];
@@ -228,10 +265,21 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
 
   return (
     <div className="h-screen w-full overflow-hidden bg-slate-50 font-sans text-slate-900 flex flex-col">
-      <header className="h-14 border-b border-slate-200 bg-white flex items-center justify-between px-6 sticky top-0 z-30 shadow-sm">
-        <div className="flex items-center space-x-2 text-slate-800 font-black tracking-tight text-xl">
-          <img src="/logo.png" alt="Srini Logo" className="h-6 object-contain" />
-          <span className="uppercase tracking-widest">Srini</span>
+      <header className="h-14 border-b border-slate-200 bg-white flex items-center justify-between px-6 sticky top-0 z-30 shadow-sm print:hidden">
+        <div className="flex items-center">
+          {/* SARGENT FIX: Primary ERP Logo (Perfectly Aligned NetSuite Style) */}
+          <div className="flex items-center space-x-2">
+            <img src="/logo.png" alt="Srini Logo" className="h-8 w-8 object-contain" />
+            <div className="flex flex-col justify-center">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em] leading-none mb-0.5">Srini</span>
+              <span className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">ERP</span>
+            </div>
+          </div>
+
+          {/* Secondary Company Logo (Sized Up) */}
+          <div className="hidden md:flex items-center ml-6 pl-6 border-l border-slate-200 h-10">
+            <img src="/tanktech.png" alt="TankTechAsia" className="h-8 object-contain opacity-90" />
+          </div>
         </div>
 
         <div className="flex items-center space-x-4">
@@ -317,17 +365,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
                 <JobCardList jobs={moduleData || []} entities={entitiesList} users={usersList} tenantId={TENANT_ID} />
               )
             ) : activeModule === 'purchase_orders' ? (
-              action === 'create' ? (
-                <div className="space-y-6">
-                  <div className="flex items-center space-x-2 text-sm text-slate-500 font-medium">
-                    <Link href="/?module=purchase_orders&action=list" className="hover:text-sky-600">Purchase Orders</Link>
-                    <span>/</span>
-                    <span className="text-slate-800">Create New</span>
-                  </div>
-                  <PurchaseOrderForm items={itemsList} entities={entitiesList} tenantId={TENANT_ID} />
-                </div>
+              action === 'create' || action === 'edit' ? (
+                <PurchaseOrderForm items={itemsList} entities={entitiesList} tenantId={TENANT_ID} initialData={activeRecord} />
               ) : (
-                <PurchaseOrderList orders={moduleData || []} />
+                // SARGENT FIX: Pass userRole down so the hierarchy engine knows you are an Admin
+                <PurchaseOrderList orders={moduleData || []} tenantId={TENANT_ID} userRole={USER_ROLE} />
               )
             ) : activeModule === 'grns' ? (
               <GRNList grns={moduleData || []} />
@@ -366,7 +408,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
             ) : activeModule === 'chart_of_accounts' ? (
               <ChartOfAccounts accounts={moduleData || []} />
             ) : activeModule === 'entity_directory' ? (
-              <EntityDirectory entities={moduleData || []} tenantId={TENANT_ID} />
+              action === 'create' || action === 'edit' ? (
+                // SARGENT FIX: Route to the new Full Screen Form
+                <EntityForm tenantId={TENANT_ID} initialData={activeRecord} />
+              ) : (
+                <EntityDirectory entities={moduleData || []} tenantId={TENANT_ID} />
+              )
             ) : activeModule === 'bills' ? (
               <BillList bills={moduleData || []} />
             ) : activeModule === 'journal_entries' ? (

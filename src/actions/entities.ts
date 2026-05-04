@@ -1,16 +1,20 @@
 "use server";
 
-import { getDbClient } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
 
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
 export async function getEntities(tenantId: string) {
-    const supabase = getDbClient();
     try {
         const { data, error } = await supabase
             .from('entities')
             .select('*')
             .eq('tenant_id', tenantId)
-            .order('name', { ascending: true });
+            .order('created_at', { ascending: false });
 
         if (error) throw new Error(error.message);
         return { success: true, data };
@@ -20,26 +24,55 @@ export async function getEntities(tenantId: string) {
     }
 }
 
-export async function createEntity(formData: { tenantId: string, type: string, name: string, email: string }) {
-    const supabase = getDbClient();
+export async function createEntity(tenantId: string, payload: any) {
     try {
-        const { data, error } = await supabase
+        const { error } = await supabase
             .from('entities')
             .insert({
-                tenant_id: formData.tenantId,
-                type: formData.type, // 'CUSTOMER' or 'VENDOR'
-                name: formData.name,
-                email: formData.email
-            })
-            .select()
-            .single();
+                tenant_id: tenantId,
+                type: payload.type,
+                name: payload.name,
+                email: payload.email || null,
+                phone: payload.phone || null,
+                website: payload.website || null,
+                tax_id: payload.taxId || null,
+                payment_terms: payload.paymentTerms || 'Net 30',
+                billing_address: payload.billingAddress || null,
+                shipping_address: payload.shippingAddress || null
+            });
 
         if (error) throw new Error(error.message);
 
         revalidatePath('/');
-        return { success: true, entity: data };
+        return { success: true };
     } catch (error: any) {
-        console.error("Failed to create Entity:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function updateEntity(tenantId: string, entityId: string, payload: any) {
+    try {
+        const { error } = await supabase
+            .from('entities')
+            .update({
+                type: payload.type,
+                name: payload.name,
+                email: payload.email || null,
+                phone: payload.phone || null,
+                website: payload.website || null,
+                tax_id: payload.taxId || null,
+                payment_terms: payload.paymentTerms || 'Net 30',
+                billing_address: payload.billingAddress || null,
+                shipping_address: payload.shippingAddress || null
+            })
+            .eq('id', entityId)
+            .eq('tenant_id', tenantId);
+
+        if (error) throw new Error(error.message);
+
+        revalidatePath('/');
+        return { success: true };
+    } catch (error: any) {
         return { success: false, error: error.message };
     }
 }
