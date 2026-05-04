@@ -49,7 +49,6 @@ export default function PurchaseOrderList({ orders, tenantId, userRole }: { orde
             <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50">
                 <div>
                     <h2 className="text-lg font-bold text-slate-800 uppercase tracking-wider">Purchase Order Ledger</h2>
-                    <p className="text-xs text-slate-500 mt-1">Immutable record of all P2P procurement transactions.</p>
                 </div>
                 <Link
                     href="/?module=purchase_orders&action=create"
