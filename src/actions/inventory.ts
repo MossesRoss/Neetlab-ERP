@@ -116,6 +116,23 @@ export async function getGRNs(tenantId: string) {
     }
 }
 
+// SARGENT FIX: Fetch full GRN details for printing
+export async function getGRNDetails(tenantId: string, grnId: string) {
+    try {
+        const { data, error } = await supabase
+            .from('transactions')
+            .select('*, entities(*), transaction_lines(*)')
+            .eq('id', grnId)
+            .eq('tenant_id', tenantId)
+            .single();
+
+        if (error) throw new Error(error.message);
+        return { success: true, data };
+    } catch (error: any) {
+        return { success: false, error: error.message, data: null };
+    }
+}
+
 export async function fulfillSalesOrder(tenantId: string, soId: string) {
     try {
         const { data: so, error: soError } = await supabase

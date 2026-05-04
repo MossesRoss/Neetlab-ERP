@@ -1,7 +1,12 @@
 "use server";
 
-import { getDbClient } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
+
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 /**
  * The Final Boss: Strict Audit Compliance Check
@@ -9,7 +14,6 @@ import { revalidatePath } from 'next/cache';
  * received within a closed and locked financial period.
  */
 async function ensurePeriodOpen(tenantId: string, dateStr: string) {
-    const supabase = getDbClient();
     const date = new Date(dateStr);
     const month = date.getUTCMonth() + 1;
     const year = date.getUTCFullYear();
@@ -28,7 +32,6 @@ async function ensurePeriodOpen(tenantId: string, dateStr: string) {
 }
 
 export async function generateInvoiceFromSO(tenantId: string, salesOrderId: string) {
-    const supabase = getDbClient();
     try {
         const { data: so, error: soError } = await supabase.from('transactions').select('*, transaction_lines(*)').eq('id', salesOrderId).single();
         if (soError || !so) throw new Error("Sales Order not found.");
@@ -78,7 +81,6 @@ export async function generateInvoiceFromSO(tenantId: string, salesOrderId: stri
 }
 
 export async function getInvoices(tenantId: string) {
-    const supabase = getDbClient();
     try {
         const { data, error } = await supabase.from('transactions').select(`id, transaction_date, status, total_amount, tax_amount, reference_id, entities ( name )`).eq('tenant_id', tenantId).eq('type', 'INVOICE').order('created_at', { ascending: false });
         if (error) throw new Error(error.message);
@@ -86,8 +88,72 @@ export async function getInvoices(tenantId: string) {
     } catch (error: any) { return { success: false, error: error.message, data: [] }; }
 }
 
+// SARGENT FIX: Fetch only open invoices for the Treasury module
+export async function getUnpaidInvoices(tenantId: string) {
+    try {
+        const { data, error } = await supabase.from('transactions')
+            .select(`id, transaction_date, status, total_amount, amount_paid, reference_id, entities ( name )`)
+            .eq('tenant_id', tenantId)
+            .eq('type', 'INVOICE')
+            .in('status', ['UNPAID', 'PARTIALLY_PAID'])
+            .order('created_at', { ascending: true });
+
+        if (error) throw new Error(error.message);
+        return { success: true, data };
+    } catch (error: any) { return { success: false, error: error.message, data: [] }; }
+}
+
+// SARGENT FIX: Advanced Payment Processor (Handles Partial Payments & Specific Bank Accounts)
+export async function processIncomingPayment(tenantId: string, payload: any) {
+    try {
+        const { invoiceId, amount, accountId, paymentDate, reference } = payload;
+
+        // SECURE THE PERIOD
+        await ensurePeriodOpen(tenantId, paymentDate);
+
+        const { data: inv, error: invError } = await supabase.from('transactions').select('*').eq('id', invoiceId).single();
+        if (invError || !inv) throw new Error("Invoice not found.");
+        if (inv.status === 'PAID') throw new Error("Invoice is already fully paid.");
+
+        const paymentAmount = Number(amount);
+        const newAmountPaid = Number(inv.amount_paid || 0) + paymentAmount;
+        const newStatus = newAmountPaid >= Number(inv.total_amount) ? 'PAID' : 'PARTIALLY_PAID';
+
+        // Get the specific Bank Account and the A/R Account
+        const { data: accounts } = await supabase.from('accounts').select('id, account_number').eq('tenant_id', tenantId).in('id', [accountId]);
+        const { data: arAccounts } = await supabase.from('accounts').select('id').eq('tenant_id', tenantId).eq('account_number', '1200');
+
+        const bankAcc = accounts?.[0];
+        const arAcc = arAccounts?.[0];
+
+        if (!bankAcc || !arAcc) throw new Error("Missing Bank Account or A/R Account (1200).");
+
+        // Generate the Journal Entry for this specific payment
+        const { data: je } = await supabase.from('journal_entries').insert({
+            tenant_id: tenantId, transaction_id: inv.id, entry_date: paymentDate,
+            memo: `Payment Received - Ref: ${reference || 'N/A'} for INV-${inv.id.split('-')[0].toUpperCase()}`
+        }).select().single();
+
+        if (je) {
+            await supabase.from('journal_lines').insert([
+                { journal_entry_id: je.id, account_id: bankAcc.id, debit: paymentAmount, credit: 0 },
+                { journal_entry_id: je.id, account_id: arAcc.id, debit: 0, credit: paymentAmount }
+            ]);
+        }
+
+        // Update the invoice
+        await supabase.from('transactions').update({
+            status: newStatus,
+            amount_paid: newAmountPaid,
+            payment_reference: reference || null
+        }).eq('id', inv.id);
+
+        revalidatePath('/');
+        return { success: true };
+    } catch (error: any) { return { success: false, error: error.message }; }
+}
+
 export async function generateBillFromPO(tenantId: string, poId: string) {
-    const supabase = getDbClient();
     try {
         const { data: po, error: poError } = await supabase.from('transactions').select('*, transaction_lines(*)').eq('id', poId).single();
         if (poError || !po) throw new Error("Purchase Order not found.");
@@ -132,7 +198,6 @@ export async function generateBillFromPO(tenantId: string, poId: string) {
 }
 
 export async function getBills(tenantId: string) {
-    const supabase = getDbClient();
     try {
         const { data, error } = await supabase.from('transactions').select(`id, transaction_date, status, total_amount, reference_id, entities ( name )`).eq('tenant_id', tenantId).eq('type', 'BILL').order('created_at', { ascending: false });
         if (error) throw new Error(error.message);
@@ -141,7 +206,6 @@ export async function getBills(tenantId: string) {
 }
 
 export async function receivePayment(tenantId: string, invoiceId: string) {
-    const supabase = getDbClient();
     try {
         const { data: inv, error: invError } = await supabase.from('transactions').select('*').eq('id', invoiceId).single();
         if (invError || !inv) throw new Error("Invoice not found.");
@@ -174,7 +238,6 @@ export async function receivePayment(tenantId: string, invoiceId: string) {
 }
 
 export async function payBill(tenantId: string, billId: string) {
-    const supabase = getDbClient();
     try {
         const { data: bill, error: billError } = await supabase.from('transactions').select('*').eq('id', billId).single();
         if (billError || !bill) throw new Error("Bill not found.");
@@ -206,11 +269,7 @@ export async function payBill(tenantId: string, billId: string) {
     } catch (error: any) { return { success: false, error: error.message }; }
 }
 
-// ============================================
-// NEW: PHASE 23 DOCUMENT GENERATION DATA
-// ============================================
 export async function getInvoiceDetails(tenantId: string, invoiceId: string) {
-    const supabase = getDbClient();
     try {
         const { data, error } = await supabase
             .from('transactions')

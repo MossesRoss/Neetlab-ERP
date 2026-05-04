@@ -18,27 +18,32 @@ import FinancialDashboard from "@/components/FinancialDashboard";
 import ItemMaster from "@/components/ItemMaster";
 import ItemForm from "@/components/ItemForm";
 import EntityDirectory from "@/components/EntityDirectory";
-import EntityForm from "@/components/EntityForm"; // SARGENT FIX: Import the new Form
+import EntityForm from "@/components/EntityForm";
 import BillList from "@/components/BillList";
 import InvoiceList from "@/components/InvoiceList";
 import PrintableInvoice from "@/components/PrintableInvoice";
 import PrintableJobCard from "@/components/PrintableJobCard";
-import PrintablePO from "@/components/PrintablePO"; // SARGENT FIX: Import PO Print
+import PrintablePO from "@/components/PrintablePO";
+import PrintableGRN from "@/components/PrintableGRN";
+import PrintableSO from "@/components/PrintableSO";
 import UserManagement from "@/components/UserManagement";
 import UserForm from "@/components/UserForm";
 import StockReport from "@/components/StockReport";
 import PeriodManagement from "@/components/PeriodManagement";
-// SARGENT FIX: Added missing getPurchaseOrderDetails import
+import ReceivePaymentList from "@/components/ReceivePaymentList"; // SARGENT FIX: Import Treasury
+
+// Server Actions
 import { getPurchaseOrders, getPurchaseOrderDetails } from "@/actions/p2p";
-import { getGRNs } from "@/actions/inventory";
+import { getGRNs, getGRNDetails } from "@/actions/inventory";
 import { getJobCards, getJobCardDetails } from "@/actions/production";
 import { getDeliveryChallans } from "@/actions/subcontracting";
-import { getSalesOrders } from "@/actions/o2c";
+import { getSalesOrders, getSalesOrderDetails } from "@/actions/o2c";
 import { getAccounts, getJournalEntries } from "@/actions/gl";
 import { getItems } from "@/actions/items";
 import { getEntities } from "@/actions/entities";
-import { getBills, getInvoices, getInvoiceDetails } from "@/actions/billing";
+import { getBills, getInvoices, getInvoiceDetails, getUnpaidInvoices } from "@/actions/billing"; // SARGENT FIX: Import Unpaid fetcher
 import { getUsers } from "@/actions/admin";
+
 import {
   LayoutDashboard, ShoppingCart, FileText, ArrowRightLeft, Landmark, FileCheck,
   CreditCard, Package, Users, AlertTriangle, Receipt, Shield, Wrench, BarChart2,
@@ -66,32 +71,35 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
   const action = params.action || 'list';
   const recordId = params.id;
 
+  // ==========================================
+  // PRINT ENGINE INTERCEPTORS
+  // ==========================================
   if (action === 'print' && activeModule === 'invoices' && recordId) {
     const response = await getInvoiceDetails(TENANT_ID, recordId);
     return <PrintableInvoice invoice={response.data} />;
   }
-
-  // SARGENT FIX: Handle PO Document Printing
   if (action === 'print' && activeModule === 'purchase_orders' && recordId) {
-    const [poRes, entRes] = await Promise.all([
-      getPurchaseOrderDetails(TENANT_ID, recordId),
-      getEntities(TENANT_ID)
-    ]);
+    const [poRes, entRes] = await Promise.all([getPurchaseOrderDetails(TENANT_ID, recordId), getEntities(TENANT_ID)]);
     return <PrintablePO po={poRes.data} entities={entRes.data || []} />;
   }
-
-  // SARGENT FIX: Handle Job Card Document Printing
+  if (action === 'print' && activeModule === 'grns' && recordId) {
+    const grnRes = await getGRNDetails(TENANT_ID, recordId);
+    return <PrintableGRN grn={grnRes.data} />;
+  }
   if (action === 'print' && activeModule === 'job_cards' && recordId) {
-    const [jobRes, entRes, userRes] = await Promise.all([
-      getJobCardDetails(TENANT_ID, recordId),
-      getEntities(TENANT_ID),
-      getUsers(TENANT_ID)
-    ]);
+    const [jobRes, entRes, userRes] = await Promise.all([getJobCardDetails(TENANT_ID, recordId), getEntities(TENANT_ID), getUsers(TENANT_ID)]);
     return <PrintableJobCard job={jobRes.data} entities={entRes.data || []} users={userRes.data || []} />;
+  }
+  if (action === 'print' && activeModule === 'sales_orders' && recordId) {
+    const [soRes, entRes] = await Promise.all([getSalesOrderDetails(TENANT_ID, recordId), getEntities(TENANT_ID)]);
+    return <PrintableSO so={soRes.data} entities={entRes.data || []} />;
   }
 
   const isAuthorized = canAccess(USER_ROLE, activeModule as keyof typeof MODULE_PERMISSIONS);
 
+  // ==========================================
+  // DATA FETCHING LAYER
+  // ==========================================
   let accountsList = [];
   let itemsList = [];
   let entitiesList = [];
@@ -107,30 +115,29 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
         activeRecord = moduleData.find((i: any) => i.id === recordId);
       }
     } else if (activeModule === 'entity_directory') {
-      // SARGENT FIX: Handle Create/Edit Routing Data Fetching
       if (action === 'create' || action === 'edit') {
         if (action === 'edit' && recordId) {
           const entRes = await getEntities(TENANT_ID);
-          activeRecord = entRes.data?.find(e => e.id === recordId);
+          activeRecord = entRes.data?.find((e: any) => e.id === recordId);
         }
       } else {
         const response = await getEntities(TENANT_ID);
         moduleData = response.data || [];
       }
-    } else if (activeModule === 'bills') {
+    } else if (activeModule === 'bills' || activeModule === 'payments_out') {
+      // SARGENT FIX: Map Vendor Payments to the Bills Ledger
       const response = await getBills(TENANT_ID);
       moduleData = response.data || [];
     } else if (activeModule === 'stock_reports' || activeModule === 'dashboard' || activeModule === 'period_close') {
       moduleData = [];
-    } else if (activeModule === 'invoices') {
+    } else if (activeModule === 'invoices' || activeModule === 'payments_in') {
+      // SARGENT FIX: Map Receive Payments to the Invoices Ledger
       const response = await getInvoices(TENANT_ID);
       moduleData = response.data || [];
     } else if (activeModule === 'purchase_orders') {
-      // SARGENT FIX: Enable editing and data injection for PO Form
       const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
       itemsList = itemRes.data || [];
       entitiesList = entRes.data || [];
-
       if (action === 'create' || action === 'edit') {
         if (action === 'edit' && recordId) {
           const poRes = await getPurchaseOrderDetails(TENANT_ID, recordId);
@@ -147,7 +154,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
       const [entRes, userRes] = await Promise.all([getEntities(TENANT_ID), getUsers(TENANT_ID)]);
       entitiesList = entRes.data || [];
       usersList = userRes.data || [];
-
       if (action === 'create' || action === 'edit') {
         const response = await getItems(TENANT_ID);
         itemsList = response.data || [];
@@ -169,14 +175,28 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
         moduleData = response.data || [];
       }
     } else if (activeModule === 'sales_orders') {
-      if (action === 'create') {
-        const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
-        itemsList = itemRes.data || [];
-        entitiesList = entRes.data || [];
+      const [itemRes, entRes] = await Promise.all([getItems(TENANT_ID), getEntities(TENANT_ID)]);
+      itemsList = itemRes.data || [];
+      entitiesList = entRes.data || [];
+      if (action === 'create' || action === 'edit') {
+        if (action === 'edit' && recordId) {
+          const soRes = await getSalesOrderDetails(TENANT_ID, recordId);
+          activeRecord = soRes.data;
+        }
       } else {
         const response = await getSalesOrders(TENANT_ID);
         moduleData = response.data || [];
       }
+    } else if (activeModule === 'invoices') {
+      const response = await getInvoices(TENANT_ID);
+      moduleData = response.data || [];
+    } else if (activeModule === 'payments_in') {
+      // SARGENT FIX: Treasury specific data loading (Open AR + Banks)
+      const [accRes, invRes] = await Promise.all([getAccounts(TENANT_ID), getUnpaidInvoices(TENANT_ID)]);
+      accountsList = accRes.data || [];
+      moduleData = invRes.data || [];
+    } else if (activeModule === 'stock_reports') {
+      moduleData = [];
     } else if (activeModule === 'chart_of_accounts') {
       const response = await getAccounts(TENANT_ID);
       moduleData = response.data || [];
@@ -189,11 +209,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
         moduleData = response.data || [];
       }
     } else if (activeModule === 'user_management') {
-      // SARGENT FIX: Handle Create/Edit Routing Data Fetching
       if (action === 'create' || action === 'edit') {
         if (action === 'edit' && recordId) {
-          const userRes = await getUsers(TENANT_ID); // Fetch all to find specific. In production, use getUserDetails directly.
-          activeRecord = userRes.data?.find(u => u.id === recordId);
+          const userRes = await getUsers(TENANT_ID);
+          activeRecord = userRes.data?.find((u: any) => u.id === recordId);
         }
       } else {
         const response = await getUsers(TENANT_ID);
@@ -267,18 +286,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
     <div className="h-screen w-full overflow-hidden bg-slate-50 font-sans text-slate-900 flex flex-col">
       <header className="h-14 border-b border-slate-200 bg-white flex items-center justify-between px-6 sticky top-0 z-30 shadow-sm print:hidden">
         <div className="flex items-center">
-          {/* SARGENT FIX: Primary ERP Logo (Perfectly Aligned NetSuite Style) */}
-          <div className="flex items-center space-x-2">
-            <img src="/logo.png" alt="Srini Logo" className="h-8 w-8 object-contain" />
-            <div className="flex flex-col justify-center">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em] leading-none mb-0.5">Srini</span>
-              <span className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">ERP</span>
-            </div>
+          {/* SARGENT FIX: Removed duplicate HTML text, relying purely on the logo image */}
+          <div className="flex items-center">
+            <img src="/logo.png" alt="Srini ERP" className="h-7 object-contain" />
           </div>
 
-          {/* Secondary Company Logo (Sized Up) */}
-          <div className="hidden md:flex items-center ml-6 pl-6 border-l border-slate-200 h-10">
-            <img src="/tanktech.png" alt="TankTechAsia" className="h-8 object-contain opacity-90" />
+          <div className="hidden md:flex items-center ml-5 pl-5 border-l border-slate-300 h-7">
+            <img src="/tanktech.png" alt="TankTechAsia" className="h-5 object-contain opacity-90" />
           </div>
         </div>
 
@@ -368,7 +382,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
               action === 'create' || action === 'edit' ? (
                 <PurchaseOrderForm items={itemsList} entities={entitiesList} tenantId={TENANT_ID} initialData={activeRecord} />
               ) : (
-                // SARGENT FIX: Pass userRole down so the hierarchy engine knows you are an Admin
                 <PurchaseOrderList orders={moduleData || []} tenantId={TENANT_ID} userRole={USER_ROLE} />
               )
             ) : activeModule === 'grns' ? (
@@ -380,41 +393,35 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
                 <DeliveryChallanList dcs={moduleData || []} tenantId={TENANT_ID} />
               )
             ) : activeModule === 'sales_orders' ? (
-              action === 'create' ? (
-                <div className="space-y-6">
-                  <div className="flex items-center space-x-2 text-sm text-slate-500 font-medium">
-                    <Link href="/?module=sales_orders&action=list" className="hover:text-emerald-600">Sales Orders</Link>
-                    <span>/</span>
-                    <span className="text-slate-800">Create New</span>
-                  </div>
-                  <SalesOrderForm items={itemsList} entities={entitiesList} tenantId={TENANT_ID} />
-                </div>
+              action === 'create' || action === 'edit' ? (
+                <SalesOrderForm items={itemsList} entities={entitiesList} tenantId={TENANT_ID} initialData={activeRecord} />
               ) : (
-                <SalesOrderList orders={moduleData || []} tenantId={TENANT_ID} />
+                <SalesOrderList orders={moduleData || []} tenantId={TENANT_ID} userRole={USER_ROLE} />
               )
             ) : activeModule === 'invoices' ? (
               <InvoiceList invoices={moduleData || []} />
+            ) : activeModule === 'payments_in' ? (
+              // SARGENT FIX: Map the dedicated Treasury module
+              <ReceivePaymentList invoices={moduleData || []} accounts={accountsList} tenantId={TENANT_ID} />
             ) : activeModule === 'stock_reports' ? (
               <StockReport tenantId={TENANT_ID} />
             ) : activeModule === 'period_close' ? (
               <PeriodManagement tenantId={TENANT_ID} />
             ) : activeModule === 'user_management' ? (
               action === 'create' || action === 'edit' ? (
-                // SARGENT FIX: Route to the new Full Screen Form
                 <UserForm tenantId={TENANT_ID} initialData={activeRecord} />
               ) : (
-                <UserManagement users={moduleData || []} tenantId={TENANT_ID} />
+                <UserManagement users={moduleData || []} />
               )
             ) : activeModule === 'chart_of_accounts' ? (
               <ChartOfAccounts accounts={moduleData || []} />
             ) : activeModule === 'entity_directory' ? (
               action === 'create' || action === 'edit' ? (
-                // SARGENT FIX: Route to the new Full Screen Form
                 <EntityForm tenantId={TENANT_ID} initialData={activeRecord} />
               ) : (
                 <EntityDirectory entities={moduleData || []} tenantId={TENANT_ID} />
               )
-            ) : activeModule === 'bills' ? (
+            ) : activeModule === 'bills' || activeModule === 'payments_out' ? (
               <BillList bills={moduleData || []} />
             ) : activeModule === 'journal_entries' ? (
               action === 'create' ? (
@@ -424,7 +431,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
                     <span>/</span>
                     <span className="text-slate-800">Post Entry</span>
                   </div>
-                  <JournalEntryForm accounts={accountsList} tenantId={TENANT_ID} />
+                  <JournalEntryForm accounts={accountsList} />
                 </div>
               ) : (
                 <JournalEntryList entries={moduleData || []} />
