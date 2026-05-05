@@ -23,7 +23,6 @@ export default function EntityDirectory({ entities, tenantId }: { entities: any[
                         <div className="p-2 bg-violet-100 rounded-lg text-violet-700"><Users size={20} /></div>
                         <div>
                             <h2 className="text-lg font-bold text-slate-800 uppercase tracking-wider">Entity Directory</h2>
-                            <p className="text-xs text-slate-500 mt-1">Master database of all Customers and Vendors.</p>
                         </div>
                     </div>
                     <button

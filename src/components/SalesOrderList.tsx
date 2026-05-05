@@ -44,7 +44,6 @@ export default function SalesOrderList({ orders, tenantId, userRole }: { orders:
             <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50">
                 <div>
                     <h2 className="text-lg font-bold text-slate-800 uppercase tracking-wider">Sales Order Ledger</h2>
-                    <p className="text-xs text-slate-500 mt-1">Immutable record of all O2C revenue transactions.</p>
                 </div>
                 <Link
                     href="/?module=sales_orders&action=create"
@@ -88,9 +87,9 @@ export default function SalesOrderList({ orders, tenantId, userRole }: { orders:
                                     <td className="px-6 py-4 font-medium">{order.entities?.name || 'Unknown Customer'}</td>
                                     <td className="px-6 py-4 text-center">
                                         <span className={`px-2.5 py-1 border rounded text-[10px] font-bold uppercase tracking-wider ${order.status === 'INVOICED' ? 'bg-sky-100 text-sky-700 border-sky-200' :
-                                                order.status === 'FULFILLED' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
-                                                    order.status === 'APPROVED' ? 'bg-indigo-100 text-indigo-700 border-indigo-200' :
-                                                        'bg-amber-100 text-amber-700 border-amber-200'
+                                            order.status === 'FULFILLED' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                                                order.status === 'APPROVED' ? 'bg-indigo-100 text-indigo-700 border-indigo-200' :
+                                                    'bg-amber-100 text-amber-700 border-amber-200'
                                             }`}>
                                             {order.status.replace('_', ' ')}
                                         </span>

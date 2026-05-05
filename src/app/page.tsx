@@ -51,13 +51,16 @@ import {
   CreditCard, Package, Users, AlertTriangle, Receipt, Shield, Wrench, BarChart2,
   Truck, ShieldAlert, LogOut, ChevronDown
 } from "lucide-react";
-import { canAccess, MODULE_PERMISSIONS } from '@/lib/rbac';
+
+// SARGENT FIX: Added ROLE_LABELS import to fix the ReferenceError crash
+import { canAccess, MODULE_PERMISSIONS, ROLE_LABELS } from '@/lib/rbac';
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ module?: string, action?: string, id?: string }> }) {
   const cookieStore = await cookies();
   const tenantIdCookie = cookieStore.get('tenant_id');
   const userRoleCookie = cookieStore.get('user_role');
   const userEmailCookie = cookieStore.get('user_email');
+  const userNameCookie = cookieStore.get('user_name'); // SARGENT FIX: Get actual name
 
   if (!tenantIdCookie?.value) {
     return <LoginForm />;
@@ -66,6 +69,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
   const TENANT_ID = tenantIdCookie.value;
   const USER_ROLE = userRoleCookie?.value || 'VIEWER';
   const USER_EMAIL = userEmailCookie?.value || 'admin@core.com';
+  // SARGENT FIX: Use the actual name, with a fallback just in case
+  const USER_NAME = userNameCookie?.value || USER_EMAIL.split('@')[0].replace('.', ' ');
 
   const params = await searchParams;
   const defaultModule = USER_ROLE === 'SALES' ? 'sales_orders' : USER_ROLE === 'WAREHOUSE' ? 'job_cards' : 'dashboard';
@@ -308,18 +313,26 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ m
         </div>
 
         <div className="flex items-center space-x-4">
-          <div className="relative group cursor-pointer py-2">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-slate-800 text-white font-bold rounded-full flex items-center justify-center text-xs uppercase shadow-sm">
-                {USER_EMAIL.charAt(0)}
+          {/* SARGENT FIX: Upgraded User Profile Trigger with Smooth Hover Animations */}
+          <div className="relative group cursor-pointer py-1">
+            <div className="flex items-center space-x-3 hover:bg-slate-100 p-1.5 rounded-xl transition-all duration-300">
+              <div className="hidden md:flex flex-col items-end">
+                <span className="text-xs font-bold text-slate-700 group-hover:text-indigo-700 transition-colors duration-300 capitalize">
+                  {USER_NAME}
+                </span>
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{USER_ROLE}</span>
               </div>
-              <ChevronDown size={14} className="text-slate-400" />
+              <div className="w-8 h-8 bg-slate-800 group-hover:bg-indigo-600 text-white font-bold rounded-full flex items-center justify-center text-xs uppercase shadow-sm group-hover:scale-110 transition-all duration-300">
+                {USER_NAME.charAt(0).toUpperCase()}
+              </div>
+              <ChevronDown size={14} className="text-slate-400 group-hover:rotate-180 transition-transform duration-300" />
             </div>
 
-            <div className="absolute right-0 top-full mt-0 w-56 bg-white border border-slate-200 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 overflow-hidden">
+            <div className="absolute right-0 top-full mt-1 w-64 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 overflow-hidden transform origin-top group-hover:translate-y-0 translate-y-2">
               <div className="p-4 border-b border-slate-100 bg-slate-50">
-                <p className="text-sm font-bold text-slate-800 truncate">{USER_EMAIL}</p>
-                <p className="text-[10px] font-black text-sky-600 uppercase tracking-widest mt-1">{USER_ROLE}</p>
+                <p className="text-sm font-bold text-slate-800 truncate">{USER_NAME}</p>
+                <p className="text-xs text-slate-500 truncate">{USER_EMAIL}</p>
+                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-1">{ROLE_LABELS[USER_ROLE as keyof typeof ROLE_LABELS] || USER_ROLE}</p>
               </div>
               <div className="p-2">
                 <form action={logout}>

@@ -11,10 +11,10 @@ export async function authenticate(formData: FormData) {
     const password = formData.get('password') as string;
 
     try {
-        // 1. Query the database for the user dynamically
+        // SARGENT FIX: Added 'name' to the select query
         const { data: user, error } = await supabase
             .from('users')
-            .select('tenant_id, role, password_hash')
+            .select('tenant_id, role, password_hash, name')
             .eq('email', email)
             .single();
 
@@ -39,6 +39,11 @@ export async function authenticate(formData: FormData) {
         });
 
         cookieStore.set('user_email', email, {
+            httpOnly: true, secure: process.env.NODE_ENV === 'production', maxAge: 60 * 60 * 24 * 7, path: '/',
+        });
+
+        // SARGENT FIX: Store the actual DB Name in the session cookie
+        cookieStore.set('user_name', user.name || 'Admin User', {
             httpOnly: true, secure: process.env.NODE_ENV === 'production', maxAge: 60 * 60 * 24 * 7, path: '/',
         });
 

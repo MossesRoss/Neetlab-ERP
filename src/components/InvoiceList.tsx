@@ -22,7 +22,6 @@ export default function InvoiceList({ invoices }: { invoices: any[] }) {
             <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-sky-50">
                 <div>
                     <h2 className="text-lg font-bold text-slate-800 uppercase tracking-wider">A/R Invoices</h2>
-                    <p className="text-xs text-slate-500 mt-1">Legally binding payment demands hitting the General Ledger.</p>
                 </div>
             </div>
 

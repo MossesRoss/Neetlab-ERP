@@ -47,7 +47,7 @@ export default function JobCardList({ jobs, entities, users, tenantId }: { jobs:
                 <div className="flex items-center space-x-3">
                     <div className="p-2 bg-indigo-100 rounded-lg text-indigo-700"><Wrench size={20} /></div>
                     <div>
-                        <h2 className="text-lg font-bold text-slate-800 uppercase tracking-wider">Job Card Pipeline</h2>
+                        <h2 className="text-lg font-bold text-slate-800 uppercase tracking-wider">Job Cards</h2>
                     </div>
                 </div>
                 <Link href="/?module=job_cards&action=create" className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors shadow-md">

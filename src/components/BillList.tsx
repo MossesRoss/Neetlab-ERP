@@ -24,7 +24,6 @@ export default function BillList({ bills }: { bills: any[] }) {
             <div className="p-6 border-b border-slate-200 bg-rose-50 flex justify-between items-center">
                 <div>
                     <h2 className="text-lg font-bold text-slate-800 uppercase tracking-wider">Accounts Payable Ledger</h2>
-                    <p className="text-xs text-slate-500 mt-1">Outstanding and paid vendor obligations.</p>
                 </div>
             </div>
 
@@ -57,11 +56,10 @@ export default function BillList({ bills }: { bills: any[] }) {
                                     <td className="px-6 py-4 font-mono text-xs">{bill.transaction_date}</td>
                                     <td className="px-6 py-4 font-medium">{bill.entities?.name || 'Unknown Vendor'}</td>
                                     <td className="px-6 py-4 text-center">
-                                        <span className={`flex items-center justify-center space-x-1.5 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider border ${
-                                            bill.status === 'PAID' 
-                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                                            : 'bg-rose-50 text-rose-700 border-rose-200'
-                                        }`}>
+                                        <span className={`flex items-center justify-center space-x-1.5 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider border ${bill.status === 'PAID'
+                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                : 'bg-rose-50 text-rose-700 border-rose-200'
+                                            }`}>
                                             {bill.status === 'PAID' ? <CheckCircle size={10} /> : <Clock size={10} />}
                                             <span>{bill.status}</span>
                                         </span>

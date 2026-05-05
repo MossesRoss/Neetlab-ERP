@@ -64,7 +64,6 @@ export default function ReceivePaymentList({ invoices, accounts, tenantId }: { i
                     </div>
                     <div>
                         <h2 className="text-lg font-bold text-slate-800 uppercase tracking-wider">Receive Payments</h2>
-                        <p className="text-xs text-slate-500 mt-1">Process incoming customer deposits to specific bank accounts.</p>
                     </div>
                 </div>
             </div>
@@ -104,8 +103,8 @@ export default function ReceivePaymentList({ invoices, accounts, tenantId }: { i
                                         <td className="px-6 py-4 font-medium text-slate-900">{inv.entities?.name}</td>
                                         <td className="px-6 py-4 text-center">
                                             <span className={`px-2.5 py-1 border rounded text-[10px] font-bold uppercase tracking-wider ${isSettled ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
-                                                    inv.status === 'PARTIALLY_PAID' ? 'bg-indigo-100 text-indigo-700 border-indigo-200' :
-                                                        'bg-amber-100 text-amber-700 border-amber-200'
+                                                inv.status === 'PARTIALLY_PAID' ? 'bg-indigo-100 text-indigo-700 border-indigo-200' :
+                                                    'bg-amber-100 text-amber-700 border-amber-200'
                                                 }`}>
                                                 {isSettled ? 'PAID' : inv.status.replace('_', ' ')}
                                             </span>

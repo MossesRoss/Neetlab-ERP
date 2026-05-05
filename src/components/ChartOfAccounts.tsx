@@ -146,7 +146,6 @@ export default function ChartOfAccounts({ accounts }: { accounts: any[] }) {
                         <Landmark size={24} className="text-indigo-400" />
                         <div>
                             <h2 className="text-lg font-bold uppercase tracking-wider">Chart of Accounts</h2>
-                            <p className="text-xs text-indigo-200/60 mt-1 font-mono">Immutable General Ledger Foundation</p>
                         </div>
                     </div>
                     <button onClick={handleOpenCreate} className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors shadow-md">

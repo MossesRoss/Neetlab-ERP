@@ -13,7 +13,6 @@ export default function GRNList({ grns }: { grns: any[] }) {
                     </div>
                     <div>
                         <h2 className="text-lg font-bold text-slate-800 uppercase tracking-wider">Goods Receipt Notes (GRN)</h2>
-                        <p className="text-xs text-slate-500 mt-1">Formal documentation of physically received items.</p>
                     </div>
                 </div>
             </div>

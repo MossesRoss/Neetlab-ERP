@@ -8,7 +8,6 @@ export default function JournalEntryList({ entries }: { entries: any[] }) {
             <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50">
                 <div>
                     <h2 className="text-lg font-bold text-slate-800 uppercase tracking-wider">Journal Entries</h2>
-                    <p className="text-xs text-slate-500 mt-1">Immutable ledger of all manual accounting entries.</p>
                 </div>
                 <Link
                     href="/?module=journal_entries&action=create"

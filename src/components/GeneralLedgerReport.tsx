@@ -13,7 +13,7 @@ export default function GeneralLedgerReport({ tenantId, accounts }: { tenantId: 
     const [startDate, setStartDate] = useState(firstDay);
     const [endDate, setEndDate] = useState(lastDay);
     const [accountId, setAccountId] = useState('');
-    
+
     const [loading, setLoading] = useState(false);
     const [reportData, setReportData] = useState<any[]>([]);
 
@@ -35,7 +35,7 @@ export default function GeneralLedgerReport({ tenantId, accounts }: { tenantId: 
     // Group and Sort the Data Hierarchically (Like NetSuite)
     const accountsGrouped = useMemo(() => {
         const groups: Record<string, any[]> = {};
-        
+
         reportData.forEach(line => {
             const accKey = `${line.accounts.account_number} - ${line.accounts.name}`;
             if (!groups[accKey]) groups[accKey] = [];
@@ -63,7 +63,6 @@ export default function GeneralLedgerReport({ tenantId, accounts }: { tenantId: 
                     </div>
                     <div>
                         <h1 className="text-xl font-bold uppercase tracking-wider">General Ledger</h1>
-                        <p className="text-xs text-indigo-200/60 mt-1 font-mono">Immutable Transaction Record</p>
                     </div>
                 </div>
             </div>
@@ -89,12 +88,12 @@ export default function GeneralLedgerReport({ tenantId, accounts }: { tenantId: 
                         </select>
                     </div>
                 </div>
-                <button 
-                    onClick={fetchReport} 
+                <button
+                    onClick={fetchReport}
                     disabled={loading}
                     className="flex items-center justify-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all shadow-md h-10 min-w-[140px]"
                 >
-                    {loading ? <Loader2 size={16} className="animate-spin" /> : <Filter size={16} />} 
+                    {loading ? <Loader2 size={16} className="animate-spin" /> : <Filter size={16} />}
                     <span>Refresh</span>
                 </button>
             </div>
@@ -133,7 +132,7 @@ export default function GeneralLedgerReport({ tenantId, accounts }: { tenantId: 
                                     let runningBalance = 0;
                                     let totalDebit = 0;
                                     let totalCredit = 0;
-                                    const accountType = lines[0].accounts.type; 
+                                    const accountType = lines[0].accounts.type;
 
                                     return (
                                         <React.Fragment key={accountName}>
@@ -159,8 +158,8 @@ export default function GeneralLedgerReport({ tenantId, accounts }: { tenantId: 
                                                 }
 
                                                 // Generate Document Number Link
-                                                const docNum = line.journal_entries.transactions 
-                                                    ? `${line.journal_entries.transactions.type.substring(0,3)}-${line.journal_entries.transactions.transaction_number || '...'}`
+                                                const docNum = line.journal_entries.transactions
+                                                    ? `${line.journal_entries.transactions.type.substring(0, 3)}-${line.journal_entries.transactions.transaction_number || '...'}`
                                                     : `JE-${line.journal_entries.id.split('-')[0].toUpperCase()}`;
 
                                                 return (
@@ -168,9 +167,9 @@ export default function GeneralLedgerReport({ tenantId, accounts }: { tenantId: 
                                                         <td className="px-6 py-2.5 text-xs text-slate-600 pl-10 font-mono">{line.journal_entries.entry_date}</td>
                                                         <td className="px-6 py-2.5 text-xs font-mono font-bold text-indigo-600">{docNum}</td>
                                                         <td className="px-6 py-2.5 text-xs text-slate-700 truncate max-w-sm" title={line.journal_entries.memo}>{line.journal_entries.memo}</td>
-                                                        <td className="px-6 py-2.5 text-xs font-mono text-right">{debit === 0 ? '' : debit.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-                                                        <td className="px-6 py-2.5 text-xs font-mono text-right">{credit === 0 ? '' : credit.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-                                                        <td className="px-6 py-2.5 text-xs font-mono text-right font-medium">{runningBalance.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                                                        <td className="px-6 py-2.5 text-xs font-mono text-right">{debit === 0 ? '' : debit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                                        <td className="px-6 py-2.5 text-xs font-mono text-right">{credit === 0 ? '' : credit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                                        <td className="px-6 py-2.5 text-xs font-mono text-right font-medium">{runningBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                                                     </tr>
                                                 );
                                             })}
@@ -181,13 +180,13 @@ export default function GeneralLedgerReport({ tenantId, accounts }: { tenantId: 
                                                     Total - {accountName}
                                                 </td>
                                                 <td className="px-6 py-3 text-xs font-mono font-black text-slate-800 text-right border-t border-slate-300">
-                                                    {totalDebit.toLocaleString('en-IN', {minimumFractionDigits: 2})}
+                                                    {totalDebit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                                                 </td>
                                                 <td className="px-6 py-3 text-xs font-mono font-black text-slate-800 text-right border-t border-slate-300">
-                                                    {totalCredit.toLocaleString('en-IN', {minimumFractionDigits: 2})}
+                                                    {totalCredit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                                                 </td>
                                                 <td className="px-6 py-3 text-xs font-mono font-black text-indigo-700 text-right border-t border-slate-300 bg-slate-100">
-                                                    {runningBalance.toLocaleString('en-IN', {minimumFractionDigits: 2})}
+                                                    {runningBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                                                 </td>
                                             </tr>
                                         </React.Fragment>
