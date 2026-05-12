@@ -1,770 +1,102 @@
-
-  create table "public"."accounts" (
-    "id" uuid not null default gen_random_uuid(),
-    "tenant_id" uuid,
-    "account_number" character varying(20) not null,
-    "name" character varying(255) not null,
-    "type" character varying(50) not null,
-    "is_active" boolean default true
-      );
-
-
-alter table "public"."accounts" enable row level security;
-
-
-  create table "public"."entities" (
-    "id" uuid not null default gen_random_uuid(),
-    "tenant_id" uuid,
-    "type" character varying(20) not null,
-    "name" character varying(255) not null,
-    "email" character varying(255),
-    "created_at" timestamp with time zone default now()
-      );
-
-
-alter table "public"."entities" enable row level security;
-
-
-  create table "public"."financial_periods" (
-    "id" uuid not null default gen_random_uuid(),
-    "tenant_id" uuid,
-    "period_month" integer not null,
-    "period_year" integer not null,
-    "is_locked" boolean default false,
-    "updated_at" timestamp with time zone default now()
-      );
-
-
-alter table "public"."financial_periods" enable row level security;
-
-
-  create table "public"."inventory_movements" (
-    "id" uuid not null default gen_random_uuid(),
-    "tenant_id" uuid,
-    "item_id" uuid,
-    "transaction_id" uuid,
-    "quantity_change" numeric(15,2) not null,
-    "movement_type" character varying(50) not null,
-    "created_at" timestamp with time zone default now()
-      );
-
-
-alter table "public"."inventory_movements" enable row level security;
-
-
-  create table "public"."items" (
-    "id" uuid not null default gen_random_uuid(),
-    "tenant_id" uuid,
-    "sku" character varying(50) not null,
-    "name" character varying(255) not null,
-    "type" character varying(50) not null,
-    "unit_price" numeric(15,2) default 0.00,
-    "is_active" boolean default true,
-    "created_at" timestamp with time zone default now(),
-    "stock_quantity" numeric(15,2) default 0.00
-      );
-
-
-alter table "public"."items" enable row level security;
-
-
-  create table "public"."journal_entries" (
-    "id" uuid not null default gen_random_uuid(),
-    "tenant_id" uuid,
-    "transaction_id" uuid,
-    "entry_date" date not null,
-    "memo" text,
-    "created_at" timestamp with time zone default now()
-      );
-
-
-alter table "public"."journal_entries" enable row level security;
-
-
-  create table "public"."journal_lines" (
-    "id" uuid not null default gen_random_uuid(),
-    "journal_entry_id" uuid,
-    "account_id" uuid,
-    "debit" numeric(15,2) default 0.00,
-    "credit" numeric(15,2) default 0.00
-      );
-
-
-alter table "public"."journal_lines" enable row level security;
-
-
-  create table "public"."tenants" (
-    "id" uuid not null default gen_random_uuid(),
-    "name" character varying(255) not null,
-    "created_at" timestamp with time zone default now()
-      );
-
-
-alter table "public"."tenants" enable row level security;
-
-
-  create table "public"."transaction_lines" (
-    "id" uuid not null default gen_random_uuid(),
-    "transaction_id" uuid,
-    "description" text not null,
-    "quantity" numeric(10,2) not null,
-    "unit_price" numeric(15,2) not null,
-    "line_total" numeric(15,2) not null,
-    "item_id" uuid
-      );
-
-
-alter table "public"."transaction_lines" enable row level security;
-
-
-  create table "public"."transactions" (
-    "id" uuid not null default gen_random_uuid(),
-    "tenant_id" uuid,
-    "entity_id" uuid,
-    "type" character varying(50) not null,
-    "status" character varying(50) not null default 'DRAFT'::character varying,
-    "transaction_date" date not null,
-    "total_amount" numeric(15,2) not null default 0.00,
-    "created_at" timestamp with time zone default now(),
-    "reference_id" uuid,
-    "tax_amount" numeric(15,2) default 0.00,
-    "discount_amount" numeric(15,2) default 0.00
-      );
-
-
-alter table "public"."transactions" enable row level security;
-
-
-  create table "public"."users" (
-    "id" uuid not null default gen_random_uuid(),
-    "tenant_id" uuid,
-    "email" character varying(255) not null,
-    "password_hash" character varying(255) not null,
-    "role" character varying(50) not null default 'USER'::character varying,
-    "created_at" timestamp with time zone default now()
-      );
-
-
-alter table "public"."users" enable row level security;
-
-CREATE UNIQUE INDEX accounts_pkey ON public.accounts USING btree (id);
-
-CREATE UNIQUE INDEX accounts_tenant_id_account_number_key ON public.accounts USING btree (tenant_id, account_number);
-
-CREATE UNIQUE INDEX entities_pkey ON public.entities USING btree (id);
-
-CREATE UNIQUE INDEX financial_periods_pkey ON public.financial_periods USING btree (id);
-
-CREATE UNIQUE INDEX financial_periods_tenant_id_period_month_period_year_key ON public.financial_periods USING btree (tenant_id, period_month, period_year);
-
-CREATE UNIQUE INDEX inventory_movements_pkey ON public.inventory_movements USING btree (id);
-
-CREATE UNIQUE INDEX items_pkey ON public.items USING btree (id);
-
-CREATE UNIQUE INDEX items_tenant_id_sku_key ON public.items USING btree (tenant_id, sku);
-
-CREATE UNIQUE INDEX journal_entries_pkey ON public.journal_entries USING btree (id);
-
-CREATE UNIQUE INDEX journal_lines_pkey ON public.journal_lines USING btree (id);
-
-CREATE UNIQUE INDEX tenants_pkey ON public.tenants USING btree (id);
-
-CREATE UNIQUE INDEX transaction_lines_pkey ON public.transaction_lines USING btree (id);
-
-CREATE UNIQUE INDEX transactions_pkey ON public.transactions USING btree (id);
-
-CREATE UNIQUE INDEX users_email_key ON public.users USING btree (email);
-
-CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id);
-
-alter table "public"."accounts" add constraint "accounts_pkey" PRIMARY KEY using index "accounts_pkey";
-
-alter table "public"."entities" add constraint "entities_pkey" PRIMARY KEY using index "entities_pkey";
-
-alter table "public"."financial_periods" add constraint "financial_periods_pkey" PRIMARY KEY using index "financial_periods_pkey";
-
-alter table "public"."inventory_movements" add constraint "inventory_movements_pkey" PRIMARY KEY using index "inventory_movements_pkey";
-
-alter table "public"."items" add constraint "items_pkey" PRIMARY KEY using index "items_pkey";
-
-alter table "public"."journal_entries" add constraint "journal_entries_pkey" PRIMARY KEY using index "journal_entries_pkey";
-
-alter table "public"."journal_lines" add constraint "journal_lines_pkey" PRIMARY KEY using index "journal_lines_pkey";
-
-alter table "public"."tenants" add constraint "tenants_pkey" PRIMARY KEY using index "tenants_pkey";
-
-alter table "public"."transaction_lines" add constraint "transaction_lines_pkey" PRIMARY KEY using index "transaction_lines_pkey";
-
-alter table "public"."transactions" add constraint "transactions_pkey" PRIMARY KEY using index "transactions_pkey";
-
-alter table "public"."users" add constraint "users_pkey" PRIMARY KEY using index "users_pkey";
-
-alter table "public"."accounts" add constraint "accounts_tenant_id_account_number_key" UNIQUE using index "accounts_tenant_id_account_number_key";
-
-alter table "public"."accounts" add constraint "accounts_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE not valid;
-
-alter table "public"."accounts" validate constraint "accounts_tenant_id_fkey";
-
-alter table "public"."entities" add constraint "entities_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE not valid;
-
-alter table "public"."entities" validate constraint "entities_tenant_id_fkey";
-
-alter table "public"."financial_periods" add constraint "financial_periods_period_month_check" CHECK (((period_month >= 1) AND (period_month <= 12))) not valid;
-
-alter table "public"."financial_periods" validate constraint "financial_periods_period_month_check";
-
-alter table "public"."financial_periods" add constraint "financial_periods_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE not valid;
-
-alter table "public"."financial_periods" validate constraint "financial_periods_tenant_id_fkey";
-
-alter table "public"."financial_periods" add constraint "financial_periods_tenant_id_period_month_period_year_key" UNIQUE using index "financial_periods_tenant_id_period_month_period_year_key";
-
-alter table "public"."inventory_movements" add constraint "inventory_movements_item_id_fkey" FOREIGN KEY (item_id) REFERENCES public.items(id) ON DELETE CASCADE not valid;
-
-alter table "public"."inventory_movements" validate constraint "inventory_movements_item_id_fkey";
-
-alter table "public"."inventory_movements" add constraint "inventory_movements_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE not valid;
-
-alter table "public"."inventory_movements" validate constraint "inventory_movements_tenant_id_fkey";
-
-alter table "public"."inventory_movements" add constraint "inventory_movements_transaction_id_fkey" FOREIGN KEY (transaction_id) REFERENCES public.transactions(id) not valid;
-
-alter table "public"."inventory_movements" validate constraint "inventory_movements_transaction_id_fkey";
-
-alter table "public"."items" add constraint "items_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE not valid;
-
-alter table "public"."items" validate constraint "items_tenant_id_fkey";
-
-alter table "public"."items" add constraint "items_tenant_id_sku_key" UNIQUE using index "items_tenant_id_sku_key";
-
-alter table "public"."journal_entries" add constraint "journal_entries_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE not valid;
-
-alter table "public"."journal_entries" validate constraint "journal_entries_tenant_id_fkey";
-
-alter table "public"."journal_entries" add constraint "journal_entries_transaction_id_fkey" FOREIGN KEY (transaction_id) REFERENCES public.transactions(id) not valid;
-
-alter table "public"."journal_entries" validate constraint "journal_entries_transaction_id_fkey";
-
-alter table "public"."journal_lines" add constraint "journal_lines_account_id_fkey" FOREIGN KEY (account_id) REFERENCES public.accounts(id) not valid;
-
-alter table "public"."journal_lines" validate constraint "journal_lines_account_id_fkey";
-
-alter table "public"."journal_lines" add constraint "journal_lines_check" CHECK (((debit >= (0)::numeric) AND (credit >= (0)::numeric) AND ((debit > (0)::numeric) OR (credit > (0)::numeric)))) not valid;
-
-alter table "public"."journal_lines" validate constraint "journal_lines_check";
-
-alter table "public"."journal_lines" add constraint "journal_lines_journal_entry_id_fkey" FOREIGN KEY (journal_entry_id) REFERENCES public.journal_entries(id) ON DELETE CASCADE not valid;
-
-alter table "public"."journal_lines" validate constraint "journal_lines_journal_entry_id_fkey";
-
-alter table "public"."transaction_lines" add constraint "transaction_lines_item_id_fkey" FOREIGN KEY (item_id) REFERENCES public.items(id) not valid;
-
-alter table "public"."transaction_lines" validate constraint "transaction_lines_item_id_fkey";
-
-alter table "public"."transaction_lines" add constraint "transaction_lines_transaction_id_fkey" FOREIGN KEY (transaction_id) REFERENCES public.transactions(id) ON DELETE CASCADE not valid;
-
-alter table "public"."transaction_lines" validate constraint "transaction_lines_transaction_id_fkey";
-
-alter table "public"."transactions" add constraint "transactions_entity_id_fkey" FOREIGN KEY (entity_id) REFERENCES public.entities(id) not valid;
-
-alter table "public"."transactions" validate constraint "transactions_entity_id_fkey";
-
-alter table "public"."transactions" add constraint "transactions_reference_id_fkey" FOREIGN KEY (reference_id) REFERENCES public.transactions(id) not valid;
-
-alter table "public"."transactions" validate constraint "transactions_reference_id_fkey";
-
-alter table "public"."transactions" add constraint "transactions_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE not valid;
-
-alter table "public"."transactions" validate constraint "transactions_tenant_id_fkey";
-
-alter table "public"."users" add constraint "users_email_key" UNIQUE using index "users_email_key";
-
-alter table "public"."users" add constraint "users_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE not valid;
-
-alter table "public"."users" validate constraint "users_tenant_id_fkey";
-
-set check_function_bodies = off;
-
-CREATE OR REPLACE FUNCTION public.update_item_stock()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-BEGIN
-    -- This guarantees atomic calculation, completely immune to race conditions
-    UPDATE items
-    SET stock_quantity = (
-        SELECT COALESCE(SUM(quantity_change), 0)
-        FROM inventory_movements
-        WHERE item_id = NEW.item_id
-    )
-    WHERE id = NEW.item_id;
-    RETURN NEW;
-END;
-$function$
-;
-
-grant delete on table "public"."accounts" to "anon";
-
-grant insert on table "public"."accounts" to "anon";
-
-grant references on table "public"."accounts" to "anon";
-
-grant select on table "public"."accounts" to "anon";
-
-grant trigger on table "public"."accounts" to "anon";
-
-grant truncate on table "public"."accounts" to "anon";
-
-grant update on table "public"."accounts" to "anon";
-
-grant delete on table "public"."accounts" to "authenticated";
-
-grant insert on table "public"."accounts" to "authenticated";
-
-grant references on table "public"."accounts" to "authenticated";
-
-grant select on table "public"."accounts" to "authenticated";
-
-grant trigger on table "public"."accounts" to "authenticated";
-
-grant truncate on table "public"."accounts" to "authenticated";
-
-grant update on table "public"."accounts" to "authenticated";
-
-grant delete on table "public"."accounts" to "service_role";
-
-grant insert on table "public"."accounts" to "service_role";
-
-grant references on table "public"."accounts" to "service_role";
-
-grant select on table "public"."accounts" to "service_role";
-
-grant trigger on table "public"."accounts" to "service_role";
-
-grant truncate on table "public"."accounts" to "service_role";
-
-grant update on table "public"."accounts" to "service_role";
-
-grant delete on table "public"."entities" to "anon";
-
-grant insert on table "public"."entities" to "anon";
-
-grant references on table "public"."entities" to "anon";
-
-grant select on table "public"."entities" to "anon";
-
-grant trigger on table "public"."entities" to "anon";
-
-grant truncate on table "public"."entities" to "anon";
-
-grant update on table "public"."entities" to "anon";
-
-grant delete on table "public"."entities" to "authenticated";
-
-grant insert on table "public"."entities" to "authenticated";
-
-grant references on table "public"."entities" to "authenticated";
-
-grant select on table "public"."entities" to "authenticated";
-
-grant trigger on table "public"."entities" to "authenticated";
-
-grant truncate on table "public"."entities" to "authenticated";
-
-grant update on table "public"."entities" to "authenticated";
-
-grant delete on table "public"."entities" to "service_role";
-
-grant insert on table "public"."entities" to "service_role";
-
-grant references on table "public"."entities" to "service_role";
-
-grant select on table "public"."entities" to "service_role";
-
-grant trigger on table "public"."entities" to "service_role";
-
-grant truncate on table "public"."entities" to "service_role";
-
-grant update on table "public"."entities" to "service_role";
-
-grant delete on table "public"."financial_periods" to "anon";
-
-grant insert on table "public"."financial_periods" to "anon";
-
-grant references on table "public"."financial_periods" to "anon";
-
-grant select on table "public"."financial_periods" to "anon";
-
-grant trigger on table "public"."financial_periods" to "anon";
-
-grant truncate on table "public"."financial_periods" to "anon";
-
-grant update on table "public"."financial_periods" to "anon";
-
-grant delete on table "public"."financial_periods" to "authenticated";
-
-grant insert on table "public"."financial_periods" to "authenticated";
-
-grant references on table "public"."financial_periods" to "authenticated";
-
-grant select on table "public"."financial_periods" to "authenticated";
-
-grant trigger on table "public"."financial_periods" to "authenticated";
-
-grant truncate on table "public"."financial_periods" to "authenticated";
-
-grant update on table "public"."financial_periods" to "authenticated";
-
-grant delete on table "public"."financial_periods" to "service_role";
-
-grant insert on table "public"."financial_periods" to "service_role";
-
-grant references on table "public"."financial_periods" to "service_role";
-
-grant select on table "public"."financial_periods" to "service_role";
-
-grant trigger on table "public"."financial_periods" to "service_role";
-
-grant truncate on table "public"."financial_periods" to "service_role";
-
-grant update on table "public"."financial_periods" to "service_role";
-
-grant delete on table "public"."inventory_movements" to "anon";
-
-grant insert on table "public"."inventory_movements" to "anon";
-
-grant references on table "public"."inventory_movements" to "anon";
-
-grant select on table "public"."inventory_movements" to "anon";
-
-grant trigger on table "public"."inventory_movements" to "anon";
-
-grant truncate on table "public"."inventory_movements" to "anon";
-
-grant update on table "public"."inventory_movements" to "anon";
-
-grant delete on table "public"."inventory_movements" to "authenticated";
-
-grant insert on table "public"."inventory_movements" to "authenticated";
-
-grant references on table "public"."inventory_movements" to "authenticated";
-
-grant select on table "public"."inventory_movements" to "authenticated";
-
-grant trigger on table "public"."inventory_movements" to "authenticated";
-
-grant truncate on table "public"."inventory_movements" to "authenticated";
-
-grant update on table "public"."inventory_movements" to "authenticated";
-
-grant delete on table "public"."inventory_movements" to "service_role";
-
-grant insert on table "public"."inventory_movements" to "service_role";
-
-grant references on table "public"."inventory_movements" to "service_role";
-
-grant select on table "public"."inventory_movements" to "service_role";
-
-grant trigger on table "public"."inventory_movements" to "service_role";
-
-grant truncate on table "public"."inventory_movements" to "service_role";
-
-grant update on table "public"."inventory_movements" to "service_role";
-
-grant delete on table "public"."items" to "anon";
-
-grant insert on table "public"."items" to "anon";
-
-grant references on table "public"."items" to "anon";
-
-grant select on table "public"."items" to "anon";
-
-grant trigger on table "public"."items" to "anon";
-
-grant truncate on table "public"."items" to "anon";
-
-grant update on table "public"."items" to "anon";
-
-grant delete on table "public"."items" to "authenticated";
-
-grant insert on table "public"."items" to "authenticated";
-
-grant references on table "public"."items" to "authenticated";
-
-grant select on table "public"."items" to "authenticated";
-
-grant trigger on table "public"."items" to "authenticated";
-
-grant truncate on table "public"."items" to "authenticated";
-
-grant update on table "public"."items" to "authenticated";
-
-grant delete on table "public"."items" to "service_role";
-
-grant insert on table "public"."items" to "service_role";
-
-grant references on table "public"."items" to "service_role";
-
-grant select on table "public"."items" to "service_role";
-
-grant trigger on table "public"."items" to "service_role";
-
-grant truncate on table "public"."items" to "service_role";
-
-grant update on table "public"."items" to "service_role";
-
-grant delete on table "public"."journal_entries" to "anon";
-
-grant insert on table "public"."journal_entries" to "anon";
-
-grant references on table "public"."journal_entries" to "anon";
-
-grant select on table "public"."journal_entries" to "anon";
-
-grant trigger on table "public"."journal_entries" to "anon";
-
-grant truncate on table "public"."journal_entries" to "anon";
-
-grant update on table "public"."journal_entries" to "anon";
-
-grant delete on table "public"."journal_entries" to "authenticated";
-
-grant insert on table "public"."journal_entries" to "authenticated";
-
-grant references on table "public"."journal_entries" to "authenticated";
-
-grant select on table "public"."journal_entries" to "authenticated";
-
-grant trigger on table "public"."journal_entries" to "authenticated";
-
-grant truncate on table "public"."journal_entries" to "authenticated";
-
-grant update on table "public"."journal_entries" to "authenticated";
-
-grant delete on table "public"."journal_entries" to "service_role";
-
-grant insert on table "public"."journal_entries" to "service_role";
-
-grant references on table "public"."journal_entries" to "service_role";
-
-grant select on table "public"."journal_entries" to "service_role";
-
-grant trigger on table "public"."journal_entries" to "service_role";
-
-grant truncate on table "public"."journal_entries" to "service_role";
-
-grant update on table "public"."journal_entries" to "service_role";
-
-grant delete on table "public"."journal_lines" to "anon";
-
-grant insert on table "public"."journal_lines" to "anon";
-
-grant references on table "public"."journal_lines" to "anon";
-
-grant select on table "public"."journal_lines" to "anon";
-
-grant trigger on table "public"."journal_lines" to "anon";
-
-grant truncate on table "public"."journal_lines" to "anon";
-
-grant update on table "public"."journal_lines" to "anon";
-
-grant delete on table "public"."journal_lines" to "authenticated";
-
-grant insert on table "public"."journal_lines" to "authenticated";
-
-grant references on table "public"."journal_lines" to "authenticated";
-
-grant select on table "public"."journal_lines" to "authenticated";
-
-grant trigger on table "public"."journal_lines" to "authenticated";
-
-grant truncate on table "public"."journal_lines" to "authenticated";
-
-grant update on table "public"."journal_lines" to "authenticated";
-
-grant delete on table "public"."journal_lines" to "service_role";
-
-grant insert on table "public"."journal_lines" to "service_role";
-
-grant references on table "public"."journal_lines" to "service_role";
-
-grant select on table "public"."journal_lines" to "service_role";
-
-grant trigger on table "public"."journal_lines" to "service_role";
-
-grant truncate on table "public"."journal_lines" to "service_role";
-
-grant update on table "public"."journal_lines" to "service_role";
-
-grant delete on table "public"."tenants" to "anon";
-
-grant insert on table "public"."tenants" to "anon";
-
-grant references on table "public"."tenants" to "anon";
-
-grant select on table "public"."tenants" to "anon";
-
-grant trigger on table "public"."tenants" to "anon";
-
-grant truncate on table "public"."tenants" to "anon";
-
-grant update on table "public"."tenants" to "anon";
-
-grant delete on table "public"."tenants" to "authenticated";
-
-grant insert on table "public"."tenants" to "authenticated";
-
-grant references on table "public"."tenants" to "authenticated";
-
-grant select on table "public"."tenants" to "authenticated";
-
-grant trigger on table "public"."tenants" to "authenticated";
-
-grant truncate on table "public"."tenants" to "authenticated";
-
-grant update on table "public"."tenants" to "authenticated";
-
-grant delete on table "public"."tenants" to "service_role";
-
-grant insert on table "public"."tenants" to "service_role";
-
-grant references on table "public"."tenants" to "service_role";
-
-grant select on table "public"."tenants" to "service_role";
-
-grant trigger on table "public"."tenants" to "service_role";
-
-grant truncate on table "public"."tenants" to "service_role";
-
-grant update on table "public"."tenants" to "service_role";
-
-grant delete on table "public"."transaction_lines" to "anon";
-
-grant insert on table "public"."transaction_lines" to "anon";
-
-grant references on table "public"."transaction_lines" to "anon";
-
-grant select on table "public"."transaction_lines" to "anon";
-
-grant trigger on table "public"."transaction_lines" to "anon";
-
-grant truncate on table "public"."transaction_lines" to "anon";
-
-grant update on table "public"."transaction_lines" to "anon";
-
-grant delete on table "public"."transaction_lines" to "authenticated";
-
-grant insert on table "public"."transaction_lines" to "authenticated";
-
-grant references on table "public"."transaction_lines" to "authenticated";
-
-grant select on table "public"."transaction_lines" to "authenticated";
-
-grant trigger on table "public"."transaction_lines" to "authenticated";
-
-grant truncate on table "public"."transaction_lines" to "authenticated";
-
-grant update on table "public"."transaction_lines" to "authenticated";
-
-grant delete on table "public"."transaction_lines" to "service_role";
-
-grant insert on table "public"."transaction_lines" to "service_role";
-
-grant references on table "public"."transaction_lines" to "service_role";
-
-grant select on table "public"."transaction_lines" to "service_role";
-
-grant trigger on table "public"."transaction_lines" to "service_role";
-
-grant truncate on table "public"."transaction_lines" to "service_role";
-
-grant update on table "public"."transaction_lines" to "service_role";
-
-grant delete on table "public"."transactions" to "anon";
-
-grant insert on table "public"."transactions" to "anon";
-
-grant references on table "public"."transactions" to "anon";
-
-grant select on table "public"."transactions" to "anon";
-
-grant trigger on table "public"."transactions" to "anon";
-
-grant truncate on table "public"."transactions" to "anon";
-
-grant update on table "public"."transactions" to "anon";
-
-grant delete on table "public"."transactions" to "authenticated";
-
-grant insert on table "public"."transactions" to "authenticated";
-
-grant references on table "public"."transactions" to "authenticated";
-
-grant select on table "public"."transactions" to "authenticated";
-
-grant trigger on table "public"."transactions" to "authenticated";
-
-grant truncate on table "public"."transactions" to "authenticated";
-
-grant update on table "public"."transactions" to "authenticated";
-
-grant delete on table "public"."transactions" to "service_role";
-
-grant insert on table "public"."transactions" to "service_role";
-
-grant references on table "public"."transactions" to "service_role";
-
-grant select on table "public"."transactions" to "service_role";
-
-grant trigger on table "public"."transactions" to "service_role";
-
-grant truncate on table "public"."transactions" to "service_role";
-
-grant update on table "public"."transactions" to "service_role";
-
-grant delete on table "public"."users" to "anon";
-
-grant insert on table "public"."users" to "anon";
-
-grant references on table "public"."users" to "anon";
-
-grant select on table "public"."users" to "anon";
-
-grant trigger on table "public"."users" to "anon";
-
-grant truncate on table "public"."users" to "anon";
-
-grant update on table "public"."users" to "anon";
-
-grant delete on table "public"."users" to "authenticated";
-
-grant insert on table "public"."users" to "authenticated";
-
-grant references on table "public"."users" to "authenticated";
-
-grant select on table "public"."users" to "authenticated";
-
-grant trigger on table "public"."users" to "authenticated";
-
-grant truncate on table "public"."users" to "authenticated";
-
-grant update on table "public"."users" to "authenticated";
-
-grant delete on table "public"."users" to "service_role";
-
-grant insert on table "public"."users" to "service_role";
-
-grant references on table "public"."users" to "service_role";
-
-grant select on table "public"."users" to "service_role";
-
-grant trigger on table "public"."users" to "service_role";
-
-grant truncate on table "public"."users" to "service_role";
-
-grant update on table "public"."users" to "service_role";
-
-CREATE TRIGGER trigger_maintain_stock AFTER INSERT ON public.inventory_movements FOR EACH ROW EXECUTE FUNCTION public.update_item_stock();
-
-
+-- =================================================================================
+-- NEETLAB INTERNAL ERP: Standalone Schema
+-- =================================================================================
+
+-- =================================================================================
+-- 1. SYLLABUS HIERARCHY (Class -> Subject -> Chapter -> Topic)
+-- We need this to catalog what we are tracking and building.
+-- =================================================================================
+CREATE TABLE classes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL UNIQUE -- e.g., 'Class 11', 'Class 12', 'Dropper'
+);
+
+CREATE TABLE subjects (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL, -- e.g., 'Physics', 'Chemistry', 'Biology'
+    class_id UUID REFERENCES classes(id) ON DELETE CASCADE
+);
+
+CREATE TABLE chapters (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    subject_id UUID REFERENCES subjects(id) ON DELETE CASCADE
+);
+
+CREATE TABLE topics (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    chapter_id UUID REFERENCES chapters(id) ON DELETE CASCADE
+);
+
+-- =================================================================================
+-- 2. SIMULATION CATALOG
+-- The master list of all simulations our Dev team has built.
+-- =================================================================================
+CREATE TABLE simulations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT NOT NULL,
+    url TEXT NOT NULL UNIQUE,   -- We will use this URL to match incoming tracking data!
+    status TEXT DEFAULT 'LIVE', -- LIVE, IN_DEVELOPMENT, DEPRECATED
+    topic_id UUID REFERENCES topics(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =================================================================================
+-- 3. ERP INTERNAL USERS
+-- Strictly for your team (Devs, PMs, Student Success). Not for external students.
+-- =================================================================================
+CREATE TABLE erp_users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    role TEXT NOT NULL, -- 'ADMIN', 'DEVELOPER', 'STUDENT_SUCCESS', 'TEACHER'
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =================================================================================
+-- 4. DEV & CONTENT TASKS (Jira/Trello Replacement)
+-- =================================================================================
+CREATE TABLE tasks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT NOT NULL,
+    description TEXT,
+    status TEXT DEFAULT 'TODO', -- 'TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE'
+    type TEXT DEFAULT 'BUG',    -- 'BUG', 'FEATURE', 'CONTENT_REVIEW'
+    
+    -- We link tasks directly to our internal simulation catalog
+    simulation_id UUID REFERENCES simulations(id) ON DELETE SET NULL, 
+    
+    assignee_id UUID REFERENCES erp_users(id) ON DELETE SET NULL,
+    reporter_id UUID REFERENCES erp_users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =================================================================================
+-- 5. TELEMETRY INGESTION (The "Google Tag" Sink)
+-- This is where the injected code snippet sends its data.
+-- =================================================================================
+CREATE TABLE tracking_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    
+    -- The injected script will generate an anonymous session cookie in the student's browser
+    -- so we can track "Time Spent" without needing to know who they are.
+    session_id TEXT NOT NULL, 
+    
+    -- The URL where the event happened. We can join this against simulations.url later.
+    page_url TEXT NOT NULL,   
+    
+    -- e.g., 'page_view', 'heartbeat' (every 10s they are active), 'click', 'completion'
+    event_type TEXT NOT NULL, 
+    
+    -- Flexible JSON payload for things like { "clicked_element": "next_button", "score": 80 }
+    event_data JSONB,         
+    
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Index for faster analytics querying by URL and Event Type
+CREATE INDEX idx_tracking_url ON tracking_events(page_url);
+CREATE INDEX idx_tracking_type ON tracking_events(event_type);
